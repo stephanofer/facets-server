@@ -1,0 +1,23 @@
+version: "2"
+run:
+  timeout: 5m
+  build-tags:
+    - integration
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - durationcheck
+    - errorlint
+    - gosec
+    - nilerr
+    - nolintlint
+    - sqlclosecheck
+    - thelper
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+formatters:
+  enable:
+    - gofmt

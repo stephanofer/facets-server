@@ -1,0 +1,27 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.test.example
+*.pem
+*.key
+
+# Build, test and tool output
+/bin/
+/artifacts/
+*.exe
+*.test
+*.out
+/go.work
+/go.work.sum
+
+# Local editors, agents and third-party reference checkouts (preserved on disk)
+/.idea/
+/.vscode/
+/.agents/
+/.opencode/
+/skills-lock.json
+/inspiration/
+/docs/huma/
+Thumbs.db
+.DS_Store

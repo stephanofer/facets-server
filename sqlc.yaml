@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  # Environment smoke fixture only. Add module-owned query sets when used.
+  - engine: postgresql
+    schema: tests/environment/testdata/migrations
+    queries: tests/environment/testdata/queries.sql
+    gen:
+      go:
+        package: fixturedb
+        out: tests/environment/fixturedb
+        sql_package: pgx/v5
+        emit_empty_slices: true
