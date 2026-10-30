@@ -3,7 +3,6 @@
 package execution_test
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json/v2"
@@ -13,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/textproto"
 	"net/url"
 	"os"
 	"strings"
@@ -22,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stephanofer/facets-server/internal/app"
@@ -309,7 +309,7 @@ func TestExecutionGuarantees(t *testing.T) {
 	t.Run("mail accepted and uncertain results", func(t *testing.T) {
 		reset(t)
 		for _, uncertain := range []bool{false, true} {
-			address, received, done := smtpCapture(t, uncertain)
+			client, received := sesCapture(t, uncertain)
 			payload, err := json.Marshal(mailer.Message{To: "recipient@example.test", Subject: "Synthetic verification", Body: "Synthetic message only"})
 			if err != nil {
 				t.Fatal(err)
@@ -324,20 +324,22 @@ func TestExecutionGuarantees(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sender := mailer.SMTP{Address: address, From: "sender@example.test", Timeout: time.Second}
+			sender, err := mailer.NewSES(client, mailer.Options{From: "sender@example.test", Timeout: time.Second})
+			if err != nil {
+				t.Fatal(err)
+			}
 			worker := execution.Worker{Store: store, Queue: "notifications", Timeout: time.Second, Lease: 2 * time.Second, Log: slog.New(slog.DiscardHandler), Handlers: map[string]execution.Handler{"mail": {Check: func(context.Context, []byte) error { return nil }, Execute: sender.Deliver}}}
 			if worked, err := worker.Once(ctx); !worked || err != nil {
 				t.Fatal(worked, err)
 			}
 			select {
 			case message := <-received:
-				if !strings.Contains(message, "Synthetic message only") || !strings.Contains(message, "Message-ID: <"+id) {
+				if !strings.Contains(message, "Synthetic message only") || !strings.Contains(message, "recipient@example.test") {
 					t.Fatal(message)
 				}
 			case <-time.After(2 * time.Second):
 				t.Fatal("mail not delivered")
 			}
-			<-done
 			status, err := store.Status(ctx, id)
 			want := "succeeded"
 			if uncertain {
@@ -345,6 +347,9 @@ func TestExecutionGuarantees(t *testing.T) {
 			}
 			if err != nil || status.State != want {
 				t.Fatal(status.State, err)
+			}
+			if !uncertain && status.ResultRef != "ses-accepted-id" {
+				t.Fatal("SES acceptance ID not persisted", status.ResultRef)
 			}
 			if worked, err := worker.Once(ctx); worked || err != nil {
 				t.Fatal("mail resent", worked, err)
@@ -434,7 +439,7 @@ func TestExecutionGuarantees(t *testing.T) {
 	})
 	t.Run("safe retries exhaustion revocation and unsupported work", func(t *testing.T) {
 		reset(t)
-		for _, scenario := range []string{"retry", "exhausted", "revoked", "unsupported"} {
+		for _, scenario := range []string{"retry", "exhausted", "revoked", "unsupported", "permanent"} {
 			t.Run(scenario, func(t *testing.T) {
 				var id string
 				err := db.Transaction(ctx, pgx.TxOptions{}, func(ctx context.Context, tx pgx.Tx) error {
@@ -453,6 +458,9 @@ func TestExecutionGuarantees(t *testing.T) {
 					return nil
 				}, Execute: func(context.Context, string, []byte) (string, error) {
 					calls++
+					if scenario == "permanent" {
+						return "", execution.ErrPermanent
+					}
 					if scenario == "exhausted" || calls == 1 {
 						return "", errors.New("safe internal failure")
 					}
@@ -473,6 +481,15 @@ func TestExecutionGuarantees(t *testing.T) {
 				if scenario == "revoked" {
 					if status.State != "cancelled" || calls != 0 {
 						t.Fatal(status.State, calls)
+					}
+					return
+				}
+				if scenario == "permanent" {
+					if status.State != "failed" || status.ErrorCode != "permanent_failure" || status.Attempts != 1 || calls != 1 {
+						t.Fatal(status, calls)
+					}
+					if worked, err := worker.Once(ctx); worked || err != nil {
+						t.Fatal("permanent failure retried", worked, err)
 					}
 					return
 				}
@@ -726,58 +743,39 @@ func TestExecutionGuarantees(t *testing.T) {
 	})
 }
 
-func smtpCapture(t *testing.T, uncertain bool) (string, <-chan string, <-chan struct{}) {
+func sesCapture(t *testing.T, uncertain bool) (*sesv2.Client, <-chan string) {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
 	messages := make(chan string, 1)
-	done := make(chan struct{})
-	t.Cleanup(func() { _ = listener.Close() })
-	go func() {
-		defer close(done)
-		conn, err := listener.Accept()
-		if err != nil {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, err := io.ReadAll(r.Body)
+		if err != nil || r.URL.Path != "/v2/email/outbound-emails" || r.Header.Get("Authorization") == "" {
+			t.Error("invalid SES request", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		defer func() { _ = conn.Close() }()
-		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
-		reader := textproto.NewReader(bufio.NewReader(conn))
-		writer := textproto.NewWriter(bufio.NewWriter(conn))
-		if writer.PrintfLine("220 synthetic SMTP") != nil {
+		select {
+		case messages <- string(data):
+		default:
+			t.Error("unexpected duplicate SES request")
+		}
+		if uncertain {
+			conn, _, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
 			return
 		}
-		for {
-			line, err := reader.ReadLine()
-			if err != nil {
-				return
-			}
-			switch {
-			case strings.HasPrefix(line, "EHLO"), strings.HasPrefix(line, "HELO"):
-				err = writer.PrintfLine("250 localhost")
-			case strings.HasPrefix(line, "MAIL FROM:"), strings.HasPrefix(line, "RCPT TO:"):
-				err = writer.PrintfLine("250 accepted")
-			case line == "DATA":
-				if writer.PrintfLine("354 send message") != nil {
-					return
-				}
-				body, readErr := reader.ReadDotBytes()
-				if readErr != nil {
-					return
-				}
-				messages <- string(body)
-				if uncertain {
-					return
-				}
-				err = writer.PrintfLine("250 queued")
-			default:
-				err = writer.PrintfLine("250 ok")
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
-	return listener.Addr().String(), messages, done
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"MessageId":"ses-accepted-id"}`)
+	}))
+	t.Cleanup(server.Close)
+	client := sesv2.NewFromConfig(aws.Config{Region: "us-east-1", HTTPClient: server.Client(),
+		Credentials: aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+			return aws.Credentials{AccessKeyID: "synthetic", SecretAccessKey: "synthetic"}, nil
+		})}, func(o *sesv2.Options) { o.BaseEndpoint = new(server.URL) })
+	return client, messages
 }

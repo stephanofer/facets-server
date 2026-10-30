@@ -39,8 +39,8 @@ Production supplies `FACETS_DATABASE_URL` to runtime processes and
 `FACETS_MIGRATION_URL` only to privileged migration/maintenance tasks. Development
 scripts derive these independently from ignored `.env` credentials. The Go binary
 does not load `.env`. Do not give the migration secret to the HTTP/worker process.
-The SMTP adapter requires STARTTLS except for explicitly loopback test delivery.
-No email credentials or public send endpoint are installed by this foundation.
+The mail adapter uses the official AWS SDK for Go v2 over signed HTTPS requests.
+No static email credentials or public send endpoint are installed by this foundation.
 
 ## Resource budgets
 
@@ -115,13 +115,13 @@ failed. Authorization checks run immediately before handling. An obsolete or
 revoked resource can cancel its job without delivery. Exceptions/panics do not
 terminate the worker silently.
 
-The reusable SMTP adapter sends real RFC-style messages with stable Message-ID,
-bounded connection/execution deadlines and optional authenticated STARTTLS.
-Errors before DATA can be retried; errors during DATA/final acceptance become
-uncertain. A 250 DATA acceptance is success even if the later connection closes.
-Message-ID is diagnostic evidence, **not a guarantee of provider deduplication**.
-The integration suite uses a real loopback SMTP receiver and verifies both
-received content and dropped acknowledgements, without contacting a real mailbox.
+The reusable [Amazon SES adapter](EMAIL.md) sends UTF-8 text/HTML using SES API v2,
+bounded contexts and the SDK's credentials, signing and HTTPS transport. The SDK
+retries explicit throttling rejections only; unknown network/server outcomes become
+uncertain. Permanent validation/authorization failures stop automatic job retries.
+The SES acceptance ID is persisted as the result reference, **not proof of delivery**.
+The integration suite uses a loopback HTTPS SES fixture and verifies signed SDK
+requests and dropped acknowledgements without contacting AWS or a real mailbox.
 
 The worker executable intentionally registers no permissive mail handlers before
 identity exists. Block 3 will register verification/recovery handlers with real
@@ -199,7 +199,7 @@ stack locations/SQLSTATE rather than serializing raw driver errors.
 
 `./scripts/dev.ps1 validate` is the closure gate: formatting, tidy/module integrity,
 sqlc/OpenAPI drift, Goose validation, vet/lint/security, deterministic tests, real
-PostgreSQL concurrency/recovery/SMTP/HTTP integration, Linux race detector,
+PostgreSQL concurrency/recovery/SES HTTPS/HTTP integration, Linux race detector,
 govulncheck and artifact inspection. Docker failures do not skip integration.
 The tests use no real financial data and no local `.env` credentials.
 
@@ -215,7 +215,7 @@ The tests use no real financial data and no local `.env` credentials.
 | Durable recovery, fencing and uncertainty | `/lease_recovery_and_fencing`, `/expired_external_work_persists_uncertainty_without_other_jobs`. |
 | Deduplication and bounded concurrent admission | `/dedup_survives_completion`, `/competing_workers_claim_only_once`, `/capacity_is_enforced_transactionally`, `/cross_queue_deduplication_still_conflicts_safely`. |
 | Retry/exhaustion, revocation and unsupported handlers | `/safe_retries_exhaustion_revocation_and_unsupported_work`. |
-| Real mail and uncertain acknowledgement | `/mail_accepted_and_uncertain_results`: actual SMTP dialogue and captured message; no network mailbox provider. |
+| Mail acceptance and uncertain acknowledgement | `/mail_accepted_and_uncertain_results`: signed SES SDK requests over loopback HTTPS and captured payload; no live AWS provider. |
 | Audit protection and retention | `/privileged_bounded_retention_preserves_dedup_identities`, `/restricted_role_and_real_HTTP_shutdown`. |
 | Real execution, diagnostics and shutdown | `/restricted_role_and_real_HTTP_shutdown`: restricted role, real HTTP readiness, worker diagnostics, cancellation and joined shutdown. |
 | HTTP composition, backpressure and failure paths | `TestRegisteredCommandsUseTheSharedBoundary`, `TestSaturatedHTTPDoesNotQueueRequests`, `TestCancellationAndPanic`, `TestWorkerRunCancellation`. |

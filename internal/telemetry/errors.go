@@ -18,6 +18,13 @@ func LogError(ctx context.Context, log *slog.Logger, message string, err error) 
 		return
 	}
 	attrs := []any{"error_type", reflect.TypeOf(err).String()}
+	if e, ok := errors.AsType[interface {
+		error
+		ErrorCode() string
+		RequestID() string
+	}](err); ok {
+		attrs = append(attrs, "code", e.ErrorCode(), "provider_request_id", e.RequestID())
+	}
 	if e, ok := errors.AsType[*pgconn.PgError](err); ok {
 		attrs = append(attrs, "sqlstate", e.Code)
 	}

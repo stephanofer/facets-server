@@ -21,6 +21,9 @@ var ErrUncertain = errors.New("external result uncertain")
 var ErrObsolete = errors.New("job no longer authorized or applicable")
 var ErrUnsupported = errors.New("job handler unavailable")
 
+// ErrPermanent means retrying the same input cannot resolve the failure.
+var ErrPermanent = errors.New("permanent execution failure")
+
 type Handler struct {
 	// Check revalidates current recipient, permissions, preferences and resource state.
 	Check func(context.Context, []byte) error
@@ -125,6 +128,8 @@ func (w *Worker) Once(ctx context.Context) (bool, error) {
 			state, code = "cancelled", "no_longer_applicable"
 		case errors.Is(runErr, ErrUncertain):
 			state, code = "uncertain", "external_result_uncertain"
+		case errors.Is(runErr, ErrPermanent):
+			state, code = "failed", "permanent_failure"
 		case job.Attempts < job.MaxAttempts:
 			state = "pending"
 		}

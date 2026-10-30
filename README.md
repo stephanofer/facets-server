@@ -5,9 +5,11 @@ contains the server only; Android is developed separately.
 
 **Current scope: block 2 — shared execution foundation.** The server provides real
 HTTP health checks, PostgreSQL transactions, technical audit, action receipts,
-durable workers/outbox, SMTP delivery and exact money/calendar primitives. Identity
+durable workers/outbox, Amazon SES API v2 mail infrastructure and exact money/calendar primitives. Identity
 and financial endpoints are deliberately absent. See [execution guarantees and
 operations](docs/EXECUTION.md) and the generated [OpenAPI contract](docs/openapi.json).
+
+Email infrastructure and future handler integration: [Amazon SES](docs/EMAIL.md).
 
 ## Prerequisites
 
