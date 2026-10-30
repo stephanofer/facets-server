@@ -139,4 +139,3 @@ stack before it is used. Future Go skills should be routed through
 - [Technical design](TECHNICAL_DESIGN.md)
 - [Development blocks](DEVELOPMENT_PLAN.md)
 - [Project instructions](AGENTS.md)
-- [Block 1 verification](docs/BLOCK_1_VERIFICATION.md)

@@ -83,7 +83,7 @@ La separación evita dos concentraciones de riesgo: construir todas las finanzas
 
 **Referencias:** técnico 3–4 y 19; producto 4.
 
-**Cierre verificado (29 de octubre de 2026):** preparación, compilación y validaciones completas reproducidas desde una copia limpia de los archivos versionados; PostgreSQL local y Testcontainers operativos. Evidencia y límites en [verificación del bloque 1](docs/BLOCK_1_VERIFICATION.md). No se inició el bloque 2.
+**Cierre verificado (29 de octubre de 2026):** preparación, compilación y validaciones completas reproducidas desde una copia limpia de los archivos versionados; PostgreSQL local y Testcontainers operativos. No se inició el bloque 2.
 
 ## Bloque 2. Base de ejecución y garantías compartidas
 
