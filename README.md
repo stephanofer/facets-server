@@ -3,11 +3,11 @@
 Central Go backend for personal and shared financial tracking. This repository
 contains the server only; Android is developed separately.
 
-**Current scope: block 1 — development environment.** There are no business
-endpoints, production tables, HTTP listener, credentials service or financial
-calculations yet. The executable prints a scaffold message and exits. Runtime
-configuration, restricted database roles, HTTP/OpenAPI, connection pools and
-durable work are introduced in block 2, not simulated here.
+**Current scope: block 2 — shared execution foundation.** The server provides real
+HTTP health checks, PostgreSQL transactions, technical audit, action receipts,
+durable workers/outbox, SMTP delivery and exact money/calendar primitives. Identity
+and financial endpoints are deliberately absent. See [execution guarantees and
+operations](docs/EXECUTION.md) and the generated [OpenAPI contract](docs/openapi.json).
 
 ## Prerequisites
 
@@ -32,6 +32,7 @@ git clone https://github.com/stephanofer/facets-server.git
 Set-Location facets-server
 ./scripts/dev.ps1 setup
 ./scripts/dev.ps1 db-up
+./scripts/dev.ps1 db-config
 ./scripts/dev.ps1 validate
 ./scripts/dev.ps1 run
 ```
@@ -47,8 +48,10 @@ that port is occupied. Data persists in the Compose volume; `db-down` stops the
 stack **without deleting the volume**. The PostgreSQL 18 image mounts its data
 volume at `/var/lib/postgresql`, not the pre-18 data directory.
 
-The bootstrap database identity is for local development only. It is not an
-application/migration privilege model and no runtime code uses it in this block.
+The bootstrap database identity is for local provisioning only. `db-config` creates
+separate `facets_migrator` and `facets_app` roles with random local passwords,
+applies migrations explicitly, and grants only the required runtime access.
+The server refuses superusers, table owners and roles that can alter audit rows.
 Changing initialization credentials in `.env` does not change an existing volume's
 database credentials; do not delete data to work around that mismatch.
 
@@ -61,13 +64,16 @@ All tasks are `./scripts/dev.ps1 <task>`:
 | `doctor` | Report Go/Docker/Compose and require Linux containers. |
 | `setup` | Prepare local configuration, pinned tools and images. |
 | `db-up` / `db-down` | Start healthy local PostgreSQL / stop without deleting data. |
-| `generate` | Regenerate the sqlc smoke fixture (never edit generated Go). |
+| `db-config` | Provision local roles, migrate and apply restricted grants. |
+| `migrate` | Apply embedded Goose migrations explicitly, never at server startup. |
+| `generate` / `openapi` | Regenerate sqlc and OpenAPI / OpenAPI only. |
 | `format` / `lint` | Format owned Go files / run configured static analysis. |
 | `test` | Run deterministic tests without Docker or the integration build tag. |
 | `integration` | Run uncached integration tests with fresh Testcontainers PostgreSQL. |
 | `race` | Run uncached unit tests with `-race` in pinned Linux Go/GCC. |
-| `build` / `run` | Build and inspect the executable / execute the scaffold. |
-| `validate` | Run every applicable block 1 gate; fail on any error. |
+| `build` / `run` | Build/inspect/version the artifact / start HTTP. |
+| `worker` | Run bounded durable notification workers. |
+| `validate` | Run every backend gate; fail on any error. |
 
 Validation checks formatting, tidy drift, module integrity, sqlc compilation and
 generation drift, Goose migration syntax, vet, lint/security checks, unit tests,
@@ -76,8 +82,7 @@ real PostgreSQL migrations/SQL, race detection, reachable vulnerabilities
 drift fails validation but leaves regenerated files available for review.
 Run lint/validation tasks serially on the same host: golangci-lint deliberately
 uses a global process lock, including across separate checkouts.
-OpenAPI generation starts when an actual API is introduced in block 2; there is
-no empty or invented contract to validate in block 1.
+OpenAPI generation is deterministic and checked for drift alongside sqlc.
 
 The first run may take several minutes compiling tool dependencies. Tools are
 pinned with `tool` directives in `go.mod`, verified by `go.sum`, and run through
@@ -107,14 +112,16 @@ the dependency or disabling cleanup. Use the script as the canonical test entry.
 
 The race task has a read-only source mount, named Go module/build caches, no Docker
 socket and no database access. It checks in-memory races, not SQL concurrency.
-Database concurrency scenarios will arrive with the features that require them.
+Database concurrency is tested separately against real PostgreSQL, including
+action replay, optimistic edits and queue admission.
 
 ## Repository conventions
 
-- `cmd/server`: minimal executable scaffold.
+- `cmd/server`: small runtime/operational entry point.
 - `internal/`: added by responsibility when implementation needs it; no empty
   module/layer trees are created in advance.
-- `migrations/`: future global sequence of immutable production Goose migrations.
+- `migrations/sql/`: immutable production Goose SQL sequence; `migrations/embed.go`
+  embeds it separately so Goose does not mistake the embedding code for a Go migration.
 - `tests/environment/testdata`: disposable SQL/JSON fixtures, not product schemas.
 - `tests/environment/fixturedb`: versioned sqlc output for the smoke fixture only.
 - `scripts/dev.ps1`: shared PowerShell development/validation entry point.

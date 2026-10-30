@@ -1,6 +1,6 @@
 # Plan de desarrollo por bloques
 
-**Estado:** bloque 1 cerrado y verificado; bloques 2–14 pendientes.  
+**Estado:** bloques 1–2 cerrados y verificados; bloques 3–14 pendientes.  
 **Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](AGENTS.md).
 
 ## 1. Propósito y alcance
@@ -52,7 +52,7 @@ Todos los bloques parten como **pendientes**. Se marcan únicamente cuando super
 | Estado | Bloque | Entrega principal |
 | --- | --- | --- |
 | [x] | 1. Preparación del entorno y del proyecto | Inicio reproducible del desarrollo. |
-| [ ] | 2. Base de ejecución y garantías compartidas | HTTP, persistencia, trabajos y fundamentos probados. |
+| [x] | 2. Base de ejecución y garantías compartidas | HTTP, persistencia, trabajos y fundamentos probados. |
 | [ ] | 3. Identidad, espacios y control de acceso | Usuarios reales y contexto autorizado multiespacio. |
 | [ ] | 4. Cuentas y organización financiera | Posiciones, referencias iniciales, permisos y catálogos. |
 | [ ] | 5. Operaciones y consistencia financiera | Registro cotidiano, correcciones y reconciliación. |
@@ -101,6 +101,10 @@ La separación evita dos concentraciones de riesgo: construir todas las finanzas
 **Cierre:** una prueba de integración demuestra escritura y trabajo asociado atómicos, recuperación tras interrupción y ausencia de duplicación. HTTP, SQL y trabajos tienen tiempos y recursos acotados; no requieren identidad o recursos financieros futuros para funcionar técnicamente.
 
 **Referencias:** técnico 3–8, 12.3, 15.1, 16 y 18–19; producto 3 y 22.2.
+
+**Cierre verificado (29 de octubre de 2026):** `./scripts/dev.ps1 validate` completó formato, módulos, generación sqlc/OpenAPI sin deriva, validación de migraciones, vet/lint, pruebas unitarias, integración PostgreSQL/SMTP/HTTP real, detector de carreras en Linux, govulncheck y revisión/ejecución del artefacto. Se comprobaron concurrencia, rollback de escritura/auditoría/outbox, respuesta TCP perdida tras el commit, recuperación con arrendamiento vencido, resultados externos inciertos sin reenvío ciego, cupos independientes por cola, permisos del rol de ejecución y cierre ordenado. Los escenarios de integración también se ejecutaron de forma selectiva e independiente; dinero y fechas pasaron campañas breves de fuzzing. Una exportación limpia del índice de Git compiló y ejecutó el binario sin archivos locales ignorados.
+
+La [documentación de ejecución](docs/EXECUTION.md) vincula requisitos con pruebas, límites y contratos. Govulncheck detectó cero vulnerabilidades alcanzables y cero en paquetes importados; el aviso de módulo `GO-2026-5932` corresponde a `golang.org/x/crypto/openpgp`, que no se importa ni se utiliza. No se alteró la versión acordada de x/crypto por un paquete ajeno al alcance. No se inició el bloque 3 ni se registraron endpoints financieros ficticios.
 
 ## Bloque 3. Identidad, espacios y control de acceso
 

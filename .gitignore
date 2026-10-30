@@ -5,6 +5,10 @@
 !.env.test.example
 *.pem
 *.key
+*.pfx
+*.p12
+*.dump
+*.backup
 
 # Build, test and tool output
 /bin/

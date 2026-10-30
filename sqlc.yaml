@@ -1,5 +1,14 @@
 version: "2"
 sql:
+  - engine: postgresql
+    schema: migrations/sql
+    queries: internal/execution/queries.sql
+    gen:
+      go:
+        package: executiondb
+        out: internal/execution/executiondb
+        sql_package: pgx/v5
+        emit_empty_slices: true
   # Environment smoke fixture only. Add module-owned query sets when used.
   - engine: postgresql
     schema: tests/environment/testdata/migrations

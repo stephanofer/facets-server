@@ -61,6 +61,8 @@ Huma utiliza el adaptador oficial [`humago`](https://pkg.go.dev/github.com/danie
 
 Los módulos auxiliares de OpenTelemetry tienen versiones propias: se fijan y comprueban al incorporar cada instrumentación o exportador; no se les asigna automáticamente la versión del núcleo.
 
+El bloque 2 utiliza `golang.org/x/text` 0.43.0, ya presente de forma transitiva en la base, como dependencia directa para identificar monedas y su escala estándar mediante `currency`. Esto evita mantener un catálogo monetario parcial propio o asumir dos decimales; no utiliza su formato regional para calcular importes. Las conversiones informativas permanecen en `apd` y los importes efectivos en `int64`.
+
 ### 3.3. Pruebas y herramientas
 
 | Componente | Versión base | Uso y referencia |
@@ -528,3 +530,16 @@ Desarrollar capacidades verticales: contrato → reglas → autorización/persis
 La validación automatizada incluye formato, análisis estático, tests, race detector, integración, sqlc reproducible, revisión de OpenAPI, migraciones, verificación de módulos y vulnerabilidades mediante `govulncheck`, además de revisión del artefacto construido. Fijar versiones de las herramientas al configurarlas. No usar datos financieros reales en desarrollo.
 
 Una funcionalidad está terminada cuando contempla permisos, incompletitud, reintento, concurrencia, revocación, interrupción, trazabilidad y diagnóstico, además del camino exitoso. Cambios de comportamiento actualizan contrato, pruebas y documentos; decisiones relevantes incluyen motivo y consecuencias, sin documentación ceremonial.
+
+### 19.4. Concreción de la base de ejecución
+
+La implementación del bloque 2 se documenta en [garantías y operación](docs/EXECUTION.md). No modifica las reglas financieras ni adelanta identidad: expone únicamente salud y contrato técnico. La consulta/reintento de trabajos es una tarea operativa con acceso de sistema y credenciales restringidas, no una API anónima ni un reemplazo de la administración del bloque 13.
+
+- Goose utiliza migraciones embebidas, ejecución explícita y exclusión mediante advisory lock de sesión. La ejecución ordinaria comprueba el esquema y rechaza credenciales excesivas; no aplica migraciones al arrancar.
+- El outbox y la cola comparten `jobs`; no se introduce otro bus o almacén. La recuperación se confirma también cuando no existe otro trabajo ejecutable. Un arrendamiento externo vencido queda incierto y requiere conciliación.
+- Los recibos de acciones y verificadores de deduplicación conservan referencias y huellas durante la vida del ámbito, sin copiar respuestas HTTP sensibles ni purgar verificadores mientras exista su recurso. El ciclo de eliminación se integra al incorporar identidades/espacios y se completa en el bloque 13.
+- La auditoría técnica se conserva 12 meses. El mantenimiento privilegiado purga en lotes acotados; el rol de aplicación no puede modificar ni eliminar auditoría. Los payloads terminales se limpian al completar/cancelar o mediante mantenimiento tras 7 días en fallo/incertidumbre, sin habilitar reintentos ciegos sobre contenido purgado.
+- OpenTelemetry utiliza proveedores inyectados, métricas consultables en un listener de diagnóstico separado de loopback y exportación muestreada de metadatos permitidos de trazas mediante `slog`. No exige plataforma adicional. Los logs externos deben aplicar la retención de 30 días. Los stacks se construyen desde frames, no desde el formateador de `oops`, que incluye mensajes originales potencialmente sensibles.
+- Las licencias directas incorporadas se comprobaron en las versiones resueltas: Huma y oops (MIT), apd y OpenTelemetry (Apache-2.0), x/text (BSD-3-Clause). `lo` sigue sin uso directo; aparece transitivamente por oops. Los ajustes transitivos de `go.mod` son los requeridos por las versiones acordadas, no una actualización general del stack.
+
+Los límites iniciales son presupuestos configurados y probados, no resultados de capacidad ni cumplimiento anticipado de los objetivos p95. Los detalles operativos, contrato generado y pruebas de concurrencia/recuperación acompañan al código.
