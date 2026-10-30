@@ -2,8 +2,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'format', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'validate', 'db-up', 'db-down')]
-    [string] $Task = 'validate'
+    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'format', 'check', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'validate', 'db-up', 'db-down')]
+    [string] $Task = 'validate',
+    [string[]] $Packages = @('./...')
 )
 
 Set-StrictMode -Version Latest
@@ -12,15 +13,63 @@ $root = Split-Path $PSScriptRoot -Parent
 $environment = Get-Content (Join-Path $root 'environment.json') -Raw | ConvertFrom-Json
 $previousToolchain = $env:GOTOOLCHAIN
 $previousRuntime = @{}
+$taskTimer = [Diagnostics.Stopwatch]::StartNew()
+$validationLock = $null
 Push-Location $root
 
 function Invoke-Checked {
     param([string] $File, [string[]] $Arguments)
     Write-Host "Running: $File $($Arguments -join ' ')"
-    & $File @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "$File failed (exit $LASTEXITCODE)."
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        & $File @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "$File failed (exit $LASTEXITCODE)."
+        }
     }
+    finally {
+        Write-Host ('Elapsed: {0:N2}s — {1}' -f $timer.Elapsed.TotalSeconds, $File)
+    }
+}
+
+function Get-OwnedGoFiles {
+    foreach ($folder in @('cmd', 'internal', 'migrations', 'tests')) {
+        Get-ChildItem $folder -Filter '*.go' -File -Recurse | ForEach-Object { $_.FullName }
+    }
+}
+
+function Invoke-Format {
+    param([switch] $Check)
+    $goRoot = & go env GOROOT
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve pinned Go formatter.' }
+    $formatter = Join-Path $goRoot 'bin/gofmt'
+    if ($IsWindows) { $formatter += '.exe' }
+    $files = @(Get-OwnedGoFiles)
+    if ($Check) {
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        $unformatted = @(& $formatter -l @files)
+        if ($LASTEXITCODE -ne 0) { throw 'Go format check failed.' }
+        Write-Host ('Elapsed: {0:N2}s — gofmt check' -f $timer.Elapsed.TotalSeconds)
+        if ($unformatted.Count -ne 0) {
+            throw "Unformatted Go files. Run format first: $($unformatted -join ', ')"
+        }
+    }
+    else { Invoke-Checked $formatter (@('-w') + $files) }
+}
+
+function Get-ValidationFingerprint {
+    $files = @(Get-OwnedGoFiles)
+    foreach ($folder in @('cmd', 'internal', 'migrations', 'tests', 'scripts', '.github')) {
+        $files += @(Get-ChildItem $folder -File -Recurse | ForEach-Object { $_.FullName })
+    }
+    $files += @(Get-ChildItem $root -File | Where-Object {
+        $_.Name -in @('go.mod', 'go.sum', 'environment.json', 'sqlc.yaml', '.golangci.yml', 'compose.yaml')
+    } | ForEach-Object { $_.FullName })
+    $files += (Join-Path $root 'docs/openapi.json')
+    $hashes = foreach ($file in $files | Sort-Object -Unique) {
+        '{0}:{1}' -f $file, (Get-FileHash $file -Algorithm SHA256).Hash
+    }
+    return $hashes -join "`n"
 }
 
 function Get-GeneratedSnapshot {
@@ -114,9 +163,11 @@ GRANT SELECT ON goose_db_version TO facets_app;
 }
 
 function Write-OpenAPI {
+    $timer = [Diagnostics.Stopwatch]::StartNew()
     $schema = & go run ./cmd/server -mode openapi
     if ($LASTEXITCODE -ne 0) { throw 'OpenAPI generation failed.' }
     [IO.File]::WriteAllText((Join-Path $root 'docs/openapi.json'), ($schema -join "`n") + "`n")
+    Write-Host ('Elapsed: {0:N2}s — OpenAPI generation' -f $timer.Elapsed.TotalSeconds)
 }
 
 function Assert-Docker {
@@ -195,13 +246,18 @@ try {
         'doctor' { Invoke-Doctor }
         'generate' { Invoke-Checked go @('tool', 'sqlc', 'generate'); Write-OpenAPI }
         'openapi' { Write-OpenAPI }
-        'format' { Invoke-Checked go @('tool', 'golangci-lint', 'fmt') }
+        'format' { Invoke-Format }
+        'check' {
+            Invoke-Format -Check
+            # Local iteration only: retain Go's test cache. Not a closure gate.
+            Invoke-Checked go (@('test', '-timeout=2m') + $Packages)
+        }
         'build' { Invoke-Build }
         'run' { Import-LocalConfiguration; Invoke-Checked go @('run', './cmd/server') }
         'worker' { Import-LocalConfiguration; Invoke-Checked go @('run', './cmd/server', '-mode', 'worker') }
         'migrate' { Invoke-Migrate }
         'db-config' { Initialize-DatabaseRoles }
-        'test' { Invoke-Checked go @('test', '-count=1', '-timeout=2m', './...') }
+        'test' { Invoke-Checked go (@('test', '-count=1', '-timeout=2m') + $Packages) }
         'integration' { Invoke-Integration }
         'race' { Invoke-Race }
         'lint' { Invoke-Checked go @('tool', 'golangci-lint', 'run') }
@@ -214,8 +270,19 @@ try {
             Invoke-Checked docker @('compose', '--env-file', '.env', 'down')
         }
         'validate' {
+            New-Item artifacts -ItemType Directory -Force | Out-Null
+            try {
+                $validationLock = [IO.File]::Open((Join-Path $root 'artifacts/validation.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
+            }
+            catch { throw 'Another validation is active in this checkout. Wait for it; do not launch a duplicate.' }
+            $sourceBefore = Get-ValidationFingerprint
             Invoke-Doctor
-            Invoke-Checked go @('tool', 'golangci-lint', 'fmt', '--diff')
+            Invoke-Format -Check
+            # Catch cheap code/test/lint failures before module verification,
+            # containers, race detection and vulnerability scanning.
+            Invoke-Checked go @('test', '-count=1', '-timeout=2m', './...')
+            Invoke-Checked go @('vet', '-tags=integration', './...')
+            Invoke-Checked go @('tool', 'golangci-lint', 'run')
             Invoke-Checked go @('mod', 'tidy', '-diff')
             Invoke-Checked go @('mod', 'verify')
             Invoke-Checked go @('tool', 'sqlc', 'compile')
@@ -225,19 +292,21 @@ try {
             if ($schemaBefore -ne (Get-FileHash 'docs/openapi.json' -Algorithm SHA256).Hash) { throw 'OpenAPI contract is stale. Review generated changes.' }
             Invoke-Checked go @('tool', 'goose', '-dir', 'tests/environment/testdata/migrations', 'validate')
             Invoke-Checked go @('tool', 'goose', '-dir', 'migrations/sql', 'validate')
-            Invoke-Checked go @('vet', '-tags=integration', './...')
-            Invoke-Checked go @('tool', 'golangci-lint', 'run')
-            Invoke-Checked go @('test', '-count=1', '-timeout=2m', './...')
             Invoke-Integration
             Invoke-Race
             Invoke-Checked go @('tool', 'govulncheck', '-tags=integration', '-test', './...')
             Invoke-Build
+            if ($sourceBefore -ne (Get-ValidationFingerprint)) {
+                throw 'Validation inputs changed while checks were running. This is not a valid closure run; stabilize files before retrying.'
+            }
             Write-Host 'All backend validation gates passed.'
         }
     }
 }
 finally {
+    if ($null -ne $validationLock) { $validationLock.Dispose() }
     $env:GOTOOLCHAIN = $previousToolchain
     foreach ($key in $previousRuntime.Keys) { [Environment]::SetEnvironmentVariable($key, $previousRuntime[$key], 'Process') }
     Pop-Location
+    Write-Host ('Task {0} elapsed: {1:N2}s' -f $Task, $taskTimer.Elapsed.TotalSeconds)
 }
