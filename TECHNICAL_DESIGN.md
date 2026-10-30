@@ -283,6 +283,8 @@ La contratación conserva la unidad por espacio y separación definidas en `PROD
 
 ### 9.2. Invitaciones
 
+**Precisión acordada para el bloque 3 (30 de octubre de 2026):** hasta integrar la contratación real del bloque 13 se utiliza un perfil de desarrollo no comercial, configurable y persistido por espacio, con capacidades, cupos y vigencia explícitos. No representa un plan gratuito, una prueba comercial ni una contratación. Una capacidad ausente, vencida, restringida o agotada deniega la acción; no hay un autorizador provisional que permita todo. El origen y la referencia del estado efectivo están separados de permisos y responsabilidad de facturación, para sustituir el perfil por derechos comerciales verificados sin migrar información financiera ni conceder accesos. Los cambios de configuración se aplican a altas nuevas, no reescriben asignaciones existentes ni renuevan su vigencia silenciosamente.
+
 Invitación por correo, rol y espacio identificados, aceptación explícita por el destinatario con ese correo verificado. Guardar estados, caducidad y verificador del enlace; reenviar invalida el anterior. Al aceptar se revalidan remitente, facultades, membresía no duplicada y capacidades vigentes. La incorporación es atómica e idempotente, no sustituye otras pertenencias y explica el acceso que conceden las cuentas compartidas con todo el espacio.
 
 ### 9.3. Revocación y artefactos derivados
@@ -543,3 +545,11 @@ La implementación del bloque 2 se documenta en [garantías y operación](docs/E
 - Las licencias directas incorporadas se comprobaron en las versiones resueltas: Huma y oops (MIT), apd y OpenTelemetry (Apache-2.0), x/text (BSD-3-Clause). `lo` sigue sin uso directo; aparece transitivamente por oops. Los ajustes transitivos de `go.mod` son los requeridos por las versiones acordadas, no una actualización general del stack.
 
 Los límites iniciales son presupuestos configurados y probados, no resultados de capacidad ni cumplimiento anticipado de los objetivos p95. Los detalles operativos, contrato generado y pruebas de concurrencia/recuperación acompañan al código.
+
+### 19.5. Concreción de identidad y acceso
+
+El bloque 3 concreta sus contratos, límites, custodia de secretos y transición comercial en [identidad y acceso](docs/ACCESS.md). El área `internal/access` mantiene las identidades y la frontera de membresías/capacidades; los módulos financieros utilizarán su autorización transaccional, sin conceder acceso privado por administrar un espacio. Las concesiones y artefactos se vinculan a la identidad de la membresía vigente y a su época de acceso; reincorporarse crea otra membresía, no restaura permisos anteriores.
+
+La migración 2 amplía la base sin modificar la migración publicada del bloque 2. El alta verificada confirma conjuntamente identidad, espacio personal, propietario, capacidades y auditoría. Los tokens invalidables almacenan verificadores; solo su entrega durable conserva material cifrado transitorio y separado, con caducidad, revalidación y limpieza. No se guarda el token utilizable en texto claro ni en el payload del outbox. El cifrado utiliza AES-GCM con nonce aleatorio de la biblioteca estándar y contexto autenticado, bajo una clave externa a PostgreSQL.
+
+Las sesiones y factores internos son independientes y no otorgan todavía facultades de soporte o financieras. El aprovisionamiento interno inicial es una operación privilegiada explícita por entrada estándar, requiere TOTP y queda auditado; no existe registro público, sustitución de identidades existentes ni recuperación administrativa ordinaria de factores. La contratación real, autorizaciones de soporte y recuperación excepcional con dos aprobadores siguen perteneciendo al bloque 13. La aceptación de las API y la evidencia de integración no requieren construir Android ni provisionar recursos AWS durante las pruebas.

@@ -1,6 +1,6 @@
 # Plan de desarrollo por bloques
 
-**Estado:** bloques 1–2 cerrados y verificados; bloques 3–14 pendientes.  
+**Estado:** bloques 1–3 cerrados y verificados; bloques 4–14 pendientes.  
 **Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](AGENTS.md).
 
 ## 1. Propósito y alcance
@@ -53,7 +53,7 @@ Todos los bloques parten como **pendientes**. Se marcan únicamente cuando super
 | --- | --- | --- |
 | [x] | 1. Preparación del entorno y del proyecto | Inicio reproducible del desarrollo. |
 | [x] | 2. Base de ejecución y garantías compartidas | HTTP, persistencia, trabajos y fundamentos probados. |
-| [ ] | 3. Identidad, espacios y control de acceso | Usuarios reales y contexto autorizado multiespacio. |
+| [x] | 3. Identidad, espacios y control de acceso | Usuarios reales y contexto autorizado multiespacio. |
 | [ ] | 4. Cuentas y organización financiera | Posiciones, referencias iniciales, permisos y catálogos. |
 | [ ] | 5. Operaciones y consistencia financiera | Registro cotidiano, correcciones y reconciliación. |
 | [ ] | 6. Vencimientos, aplicaciones y recurrentes | Motor común de obligaciones y agenda. |
@@ -122,6 +122,12 @@ La [documentación de ejecución](docs/EXECUTION.md) vincula requisitos con prue
 **Cierre:** usuarios verificados operan en varios espacios con roles distintos; no hay acceso cruzado ni sesiones de cliente utilizables como internas. Repetir alta/invitación no duplica; retirar una membresía no afecta otras. La recuperación no elude MFA y ninguna acción omite el control de capacidades por estar en construcción.
 
 **Referencias:** producto 6 y 22.1/22.4; técnico 8–10, 17.1 y 18.
+
+**Cierre verificado (30 de octubre de 2026):** `./scripts/dev.ps1 validate` completó todas las puertas sobre el código final: formato, pruebas unitarias, vet/lint, módulos, generación sqlc/OpenAPI sin deriva, migraciones, integración PostgreSQL/HTTP/correo mediante SDK SES sobre HTTPS local, detector de carreras en Linux, govulncheck y compilación/ejecución del artefacto `0.3.0`. Las pruebas usan el rol de aplicación restringido y comprueban actualización desde la migración publicada del bloque 2 conservando recibos existentes, además de la instalación desde base vacía en la regresión de ejecución.
+
+Se verificaron alta y espacio personal únicos bajo concurrencia, sesiones independientes y revocables, separación cliente/personal interno, MFA y códigos de recuperación de consumo único, recuperación sin omitir factores, cambios de credenciales, preferencias, múltiples espacios, roles, paginación, invitaciones revalidadas, cupos concurrentes, transferencia de propiedad sin traslado de facturación, retiro/reincorporación sin restaurar permisos anteriores y bloqueo de vistas previas antiguas tras la revocación. Una desconexión TCP después del commit recupera el resultado por la API sin duplicar el espacio. La sustitución del servicio conserva sesiones y correo pendiente; escenarios de reinicio/revocación/reintento también se ejecutaron aisladamente.
+
+El perfil no comercial aprobado queda persistido por espacio con capacidades, consumo y vigencia finitos. Se probó su sustitución transaccional por un estado de origen comercial sin alterar membresías, datos ni responsabilidad de facturación; esto no simula cobros ni declara completada la contratación del bloque 13. La [documentación de identidad y acceso](docs/ACCESS.md) contiene contratos, límites, custodia/limpieza de secretos, integración de los siguientes recursos y matriz de evidencia. La migración y las concesiones locales se aplicaron sin borrar datos; una exportación limpia del índice compiló y ejecutó el binario sin archivos locales ignorados. Govulncheck informó cero vulnerabilidades alcanzables y cero en paquetes importados; permanece únicamente el aviso de módulo OpenPGP ya documentado, que no se utiliza. No se inició el bloque 4 ni se implementó un cliente Android.
 
 ## Bloque 4. Cuentas y organización financiera
 

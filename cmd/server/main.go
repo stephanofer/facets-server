@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", "serve", "serve, worker, migrate, maintenance, job-status, job-retry, openapi, version")
+	mode := flag.String("mode", "serve", "serve, worker, migrate, maintenance, staff-create, job-status, job-retry, openapi, version")
 	id := flag.String("job", "", "job reference")
 	operator := flag.String("operator", "", "real operational identity for audited retry")
 	flag.Parse()
@@ -36,12 +36,13 @@ func main() {
 			log.Error("configuration rejected", "reason", err.Error())
 			os.Exit(1)
 		}
-		if err == nil {
-			if *mode == "migrate" {
-				err = app.Migrate(ctx, c.MigrationURL)
-			} else {
-				err = app.Run(ctx, c, *mode, *id, *operator, log, os.Stdout)
-			}
+		switch *mode {
+		case "staff-create":
+			err = app.ProvisionStaff(ctx, c, *operator, os.Stdin, os.Stdout)
+		case "migrate":
+			err = app.Migrate(ctx, c.MigrationURL)
+		default:
+			err = app.Run(ctx, c, *mode, *id, *operator, log, os.Stdout)
 		}
 	}
 	if err != nil {

@@ -7,9 +7,13 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/stephanofer/facets-server/internal/access"
 )
 
 type Config struct {
+	Access                                                                           access.Policy
+	MailFrom                                                                         string
 	Environment, Address, DiagnosticsAddress, DatabaseURL, MigrationURL, WorkerQueue string
 	PoolMax                                                                          int32
 	RequestTimeout, SQLTimeout, ShutdownTimeout, JobTimeout, Lease                   time.Duration
@@ -102,6 +106,9 @@ func Load(get func(string) string) (Config, error) {
 	if c.Lease < c.JobTimeout+c.SQLTimeout || c.SQLTimeout > c.RequestTimeout {
 		return Config{}, errors.New("inconsistent runtime deadlines")
 	}
+	if c.WorkerQueue == "notifications" && c.Lease < c.JobTimeout+2*c.SQLTimeout {
+		return Config{}, errors.New("notification lease must reserve secret cleanup and completion deadlines")
+	}
 	for _, dsn := range []string{c.DatabaseURL, c.MigrationURL} {
 		if dsn == "" {
 			continue
@@ -117,5 +124,10 @@ func Load(get func(string) string) (Config, error) {
 	if c.Environment == "production" && c.DatabaseURL != "" && c.DatabaseURL == c.MigrationURL {
 		return Config{}, errors.New("application and migration credentials must differ")
 	}
+	c.Access, err = access.LoadPolicy(get, c.Environment)
+	if err != nil {
+		return Config{}, err
+	}
+	c.MailFrom = get("FACETS_MAIL_FROM")
 	return c, nil
 }

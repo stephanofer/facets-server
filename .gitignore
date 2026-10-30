@@ -9,6 +9,7 @@
 *.p12
 *.dump
 *.backup
+/secrets/
 
 # Build, test and tool output
 /bin/

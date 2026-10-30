@@ -2,6 +2,16 @@ version: "2"
 sql:
   - engine: postgresql
     schema: migrations/sql
+    queries: internal/access/queries.sql
+    gen:
+      go:
+        package: accessdb
+        out: internal/access/accessdb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        omit_unused_structs: true
+  - engine: postgresql
+    schema: migrations/sql
     queries: internal/execution/queries.sql
     gen:
       go:
@@ -9,6 +19,7 @@ sql:
         out: internal/execution/executiondb
         sql_package: pgx/v5
         emit_empty_slices: true
+        omit_unused_structs: true
   # Environment smoke fixture only. Add module-owned query sets when used.
   - engine: postgresql
     schema: tests/environment/testdata/migrations

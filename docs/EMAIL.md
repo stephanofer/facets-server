@@ -3,8 +3,9 @@
 `internal/mail` replaces the previous mail transport completely. It uses Amazon
 SES **API v2** (`SendEmail`) through **AWS SDK for Go v2**. Module versions are
 pinned in `go.mod`/`go.sum`; no mail transport dependency other than the official
-SDK is needed. There are no verification, registration, recovery or notification
-use cases, mail endpoints, or permissive worker handlers in this change.
+SDK is needed. The adapter does not decide identity or permission. Block 3 adds
+[authorized verification, recovery, invitation and security handlers](ACCESS.md);
+there is still no arbitrary-recipient public send endpoint.
 
 ## Composition and configuration
 
@@ -23,11 +24,10 @@ queued payloads or logs. No manual signing, credential storage or endpoint
 selection is implemented. `NewSES` accepts the narrow SDK interface for tests.
 It applies the same operation-level safe retry policy even to injected clients.
 
-The current executable has no mail consumers, so it deliberately does not load
-AWS configuration or create an unused client. Database/HTTP/worker startup and
-tests need neither AWS credentials nor network access to AWS. Introduce runtime
-sender configuration at the composition root when the first authorized business
-module is added; do not initialize mail per HTTP request.
+The composition root initializes a reusable SES sender for notification workers,
+using `FACETS_MAIL_FROM` and native AWS configuration. API and heavy-worker modes
+do not initialize unused mail clients. Tests need neither live AWS credentials
+nor network access to AWS; missing real worker configuration fails closed.
 
 ## Messages and templates
 
@@ -53,9 +53,12 @@ messages still pass all send-time validation.
 Templates stay local: there is no SES template provisioning, remote rendering,
 configuration set, dedicated IP, global endpoint or additional AWS service.
 
-## Future durable handler integration
+## Durable handler integration
 
 Use the existing transactional outbox, not a second queue:
+
+`access.mail` implements this flow now, using encrypted short-lived delivery
+material and reference-only job payloads. See [access secret retention](ACCESS.md#secret-retention-and-maintenance).
 
 1. Enqueue a domain-specific job in the transaction that creates the relevant fact.
    Set `ExternalEffect: true` and a stable `DedupKey` for the logical communication.

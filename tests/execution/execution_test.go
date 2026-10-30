@@ -675,6 +675,8 @@ func TestExecutionGuarantees(t *testing.T) {
 				return u.String()
 			case "FACETS_ADDRESS":
 				return address
+			case "FACETS_ACCESS_KEY":
+				return strings.Repeat("21", 32)
 			}
 			return ""
 		})
@@ -711,6 +713,9 @@ func TestExecutionGuarantees(t *testing.T) {
 			t.Fatal("real server never became ready")
 		}
 		workerCtx, stopWorker := context.WithCancel(ctx)
+		// The heavy worker needs no mail provider. Notification consumers are
+		// exercised separately by the access integration suite with SES over TLS.
+		c.WorkerQueue = "heavy"
 		workerDone := make(chan error, 1)
 		go func() {
 			workerDone <- app.Run(workerCtx, c, "worker", "", "", slog.New(slog.DiscardHandler), io.Discard)

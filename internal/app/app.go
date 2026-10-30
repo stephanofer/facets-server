@@ -16,10 +16,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
+	"github.com/stephanofer/facets-server/internal/access"
 	"github.com/stephanofer/facets-server/internal/config"
 	"github.com/stephanofer/facets-server/internal/database"
 	"github.com/stephanofer/facets-server/internal/execution"
 	"github.com/stephanofer/facets-server/internal/httpapi"
+	"github.com/stephanofer/facets-server/internal/mail"
 	"github.com/stephanofer/facets-server/internal/telemetry"
 	"github.com/stephanofer/facets-server/migrations"
 	"go.opentelemetry.io/otel/metric"
@@ -66,10 +68,17 @@ func OpenAPI(w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	access.RegisterHTTP(api.Huma, nil, slog.New(slog.DiscardHandler))
 	return json.MarshalWrite(w, api.Schema, json.Deterministic(true))
 }
 
 func Run(ctx context.Context, c config.Config, mode, id, operator string, log *slog.Logger, out io.Writer) error {
+	needsIdentity := mode == "serve" || (mode == "worker" && c.WorkerQueue == "notifications")
+	if needsIdentity {
+		if err := c.Access.ValidateRuntime(); err != nil {
+			return errors.New("invalid access runtime configuration; FACETS_ACCESS_KEY is required")
+		}
+	}
 	signals := telemetry.New(log)
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -95,7 +104,10 @@ func Run(ctx context.Context, c config.Config, mode, id, operator string, log *s
 	}
 	store := &execution.Store{DB: db, QueueLimit: c.QueueLimit}
 	if mode == "maintenance" {
-		return store.Maintain(ctx, operator)
+		if err := store.Maintain(ctx, operator); err != nil {
+			return err
+		}
+		return access.MaintainSecrets(ctx, db)
 	}
 	if err := db.CheckRuntimeRole(ctx); err != nil {
 		return err
@@ -116,8 +128,18 @@ func Run(ctx context.Context, c config.Config, mode, id, operator string, log *s
 		}
 		return store.Retry(ctx, id, operator)
 	case "worker":
-		// Business modules register their authorized handlers when introduced. No
-		// anonymous email endpoint or permissive recipient authorization is installed.
+		handlers := map[string]execution.Handler{}
+		if c.WorkerQueue == "notifications" {
+			identities, err := access.New(store, c.Access)
+			if err != nil {
+				return err
+			}
+			sender, err := mail.LoadSES(ctx, mail.Options{From: c.MailFrom, Timeout: min(10*time.Second, c.JobTimeout)})
+			if err != nil {
+				return err
+			}
+			handlers["access.mail"] = identities.MailHandler(sender)
+		}
 		counter, err := signals.Metrics.Meter("facets").Int64Counter("jobs.completed")
 		if err != nil {
 			return err
@@ -130,7 +152,7 @@ func Run(ctx context.Context, c config.Config, mode, id, operator string, log *s
 		if err != nil {
 			return err
 		}
-		w := execution.Worker{Store: store, Queue: c.WorkerQueue, Concurrency: c.Workers, Timeout: c.JobTimeout, Lease: c.Lease, Poll: time.Second, Handlers: map[string]execution.Handler{}, Log: log, Completed: counter}
+		w := execution.Worker{Store: store, Queue: c.WorkerQueue, Concurrency: c.Workers, Timeout: c.JobTimeout, Lease: c.Lease, Poll: time.Second, Handlers: handlers, Log: log, Completed: counter}
 		w.Duration, w.Age = duration, age
 		return runWorker(ctx, c, &w, db, signals)
 	case "serve":
@@ -145,6 +167,11 @@ func serve(ctx context.Context, c config.Config, db *database.DB, signals *telem
 	if err != nil {
 		return err
 	}
+	identities, err := access.New(&execution.Store{DB: db, QueueLimit: c.QueueLimit}, c.Access)
+	if err != nil {
+		return err
+	}
+	access.RegisterHTTP(api.Huma, identities, log)
 	listener, err := net.Listen("tcp", c.Address)
 	if err != nil {
 		return errors.New("HTTP listener unavailable")
@@ -249,4 +276,4 @@ func runWorker(ctx context.Context, c config.Config, w *execution.Worker, db *da
 	return errors.Join(err, closeErr)
 }
 
-func Version(w io.Writer) error { _, err := fmt.Fprintln(w, "facets-server 0.2.0"); return err }
+func Version(w io.Writer) error { _, err := fmt.Fprintln(w, "facets-server 0.3.0"); return err }

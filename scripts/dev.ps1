@@ -74,7 +74,7 @@ function Get-ValidationFingerprint {
 
 function Get-GeneratedSnapshot {
     $snapshot = @{}
-    foreach ($folder in @('tests/environment/fixturedb', 'internal/execution/executiondb')) {
+    foreach ($folder in @('tests/environment/fixturedb', 'internal/execution/executiondb', 'internal/access/accessdb')) {
       Get-ChildItem $folder -Filter '*.go' -File | ForEach-Object {
         $snapshot[$_.FullName] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
       }
@@ -124,7 +124,7 @@ function Invoke-Migrate {
 }
 
 function Initialize-DatabaseRoles {
-    foreach ($key in @('FACETS_APP_PASSWORD', 'FACETS_MIGRATOR_PASSWORD')) {
+    foreach ($key in @('FACETS_APP_PASSWORD', 'FACETS_MIGRATOR_PASSWORD', 'FACETS_ACCESS_KEY')) {
         $text = Get-Content '.env' -Raw
         if ($text -notmatch "(?m)^$key=.+$") {
             $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
@@ -153,6 +153,7 @@ GRANT USAGE ON SCHEMA public TO facets_app;
     Invoke-Migrate
     $grants = @'
 GRANT SELECT,INSERT,UPDATE ON action_receipts,jobs TO facets_app;
+GRANT SELECT,INSERT,UPDATE ON principals,recovery_codes,sessions,identity_tokens,access_limits,spaces,memberships,space_access,space_capabilities,invitations,access_deliveries TO facets_app;
 GRANT SELECT,INSERT ON technical_audit TO facets_app;
 REVOKE UPDATE,DELETE,TRUNCATE ON technical_audit FROM facets_app;
 GRANT USAGE ON SEQUENCE technical_audit_id_seq TO facets_app;

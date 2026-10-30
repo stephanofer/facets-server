@@ -1,5 +1,8 @@
 # Shared execution foundation
 
+This document describes block 2. The current identity and collaboration contracts
+and their integration with this foundation are documented in [block 3](ACCESS.md).
+
 This block has no financial or identity endpoints. Synthetic integration probes
 exist only in test databases, never in migrations or production HTTP routes.
 
@@ -123,10 +126,10 @@ The SES acceptance ID is persisted as the result reference, **not proof of deliv
 The integration suite uses a loopback HTTPS SES fixture and verifies signed SDK
 requests and dropped acknowledgements without contacting AWS or a real mailbox.
 
-The worker executable intentionally registers no permissive mail handlers before
-identity exists. Block 3 will register verification/recovery handlers with real
-recipient/token validity checks. There is no fake business action or no-op sender
-to make this foundation look functional.
+The block-2 worker registered no permissive mail handlers before identity existed.
+Block 3 now registers authorized verification/recovery/invitation/security handlers
+with current recipient/token/access checks. There is no fake business action or
+no-op sender to make this foundation look functional.
 
 Operational modes of the built binary (use trusted OS/database access, not a
 client token; do not expose these commands through HTTP):

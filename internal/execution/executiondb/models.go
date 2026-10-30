@@ -8,16 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type ActionReceipt struct {
-	Actor       string
-	Scope       string
-	Action      string
-	ActionKey   string
-	Fingerprint []byte
-	ResultRef   string
-	CreatedAt   pgtype.Timestamptz
-}
-
 type Job struct {
 	ID             string
 	Queue          string
@@ -36,14 +26,4 @@ type Job struct {
 	ErrorCode      string
 	CreatedAt      pgtype.Timestamptz
 	UpdatedAt      pgtype.Timestamptz
-}
-
-type TechnicalAudit struct {
-	ID          int64
-	Actor       string
-	Scope       string
-	Event       string
-	ResourceRef string
-	RequestID   string
-	OccurredAt  pgtype.Timestamptz
 }

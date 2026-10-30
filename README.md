@@ -3,13 +3,14 @@
 Central Go backend for personal and shared financial tracking. This repository
 contains the server only; Android is developed separately.
 
-**Current scope: block 2 — shared execution foundation.** The server provides real
-HTTP health checks, PostgreSQL transactions, technical audit, action receipts,
-durable workers/outbox, Amazon SES API v2 mail infrastructure and exact money/calendar primitives. Identity
-and financial endpoints are deliberately absent. See [execution guarantees and
-operations](docs/EXECUTION.md) and the generated [OpenAPI contract](docs/openapi.json).
+**Current scope: block 3 — identity, spaces and access control.** The server adds
+verified identities, opaque device sessions, MFA/recovery, separate internal
+sessions, multispaced collaboration, invitations and persisted capabilities to
+the shared execution foundation. Financial endpoints are deliberately absent.
+See [identity/access integration and operations](docs/ACCESS.md),
+[execution guarantees](docs/EXECUTION.md) and the generated [OpenAPI contract](docs/openapi.json).
 
-Email infrastructure and future handler integration: [Amazon SES](docs/EMAIL.md).
+Email infrastructure and authorized handlers: [Amazon SES](docs/EMAIL.md).
 
 ## Prerequisites
 
@@ -54,6 +55,12 @@ The bootstrap database identity is for local provisioning only. `db-config` crea
 separate `facets_migrator` and `facets_app` roles with random local passwords,
 applies migrations explicitly, and grants only the required runtime access.
 The server refuses superusers, table owners and roles that can alter audit rows.
+`db-config` also creates a random, separate `FACETS_ACCESS_KEY` in ignored `.env`
+when absent. API and notification workers must share it; preserve it separately
+from database backups. Configure a verified `FACETS_MAIL_FROM` and the native AWS
+SDK region/credentials before running a real notification worker. The development
+profile is noncommercial, finite and persisted per space; it is not enabled in
+production as a substitute for real contracting. See [access operations](docs/ACCESS.md).
 Changing initialization credentials in `.env` does not change an existing volume's
 database credentials; do not delete data to work around that mismatch.
 

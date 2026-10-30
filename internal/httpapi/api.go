@@ -92,7 +92,7 @@ func New(o Options) (*API, error) {
 		return nil, errors.New("invalid HTTP concurrency")
 	}
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("Facets server", "0.2.0")
+	cfg := huma.DefaultConfig("Facets server", "0.3.0")
 	cfg.OpenAPIPath = "/v1/openapi"
 	cfg.DocsPath = ""
 	cfg.SchemasPath = ""
