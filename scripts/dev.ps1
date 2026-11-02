@@ -101,7 +101,7 @@ function Import-LocalConfiguration {
             $key, $value = $Matches[1], $Matches[2]
             # Explicit process settings, such as a worker's diagnostic port,
             # take precedence over local defaults.
-            if ($null -ne [Environment]::GetEnvironmentVariable($key, 'Process') -and -not $previousRuntime.ContainsKey($key)) { continue }
+            if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($key, 'Process')) -and -not $previousRuntime.ContainsKey($key)) { continue }
             if (-not $previousRuntime.ContainsKey($key)) { $previousRuntime[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
             [Environment]::SetEnvironmentVariable($key, $value, 'Process')
         }
@@ -120,13 +120,18 @@ function Invoke-Migrate {
     $database = [uri]::EscapeDataString($env:POSTGRES_DB)
     $env:FACETS_MIGRATION_URL = "postgres://facets_migrator:$password@127.0.0.1:$($env:POSTGRES_PORT)/${database}?sslmode=disable"
     try { Invoke-Checked go @('run', './cmd/server', '-mode', 'migrate') }
-    finally { $env:FACETS_MIGRATION_URL = $previousRuntime['FACETS_MIGRATION_URL'] }
+    finally {
+        if ($null -eq $previousRuntime['FACETS_MIGRATION_URL']) {
+            Remove-Item Env:FACETS_MIGRATION_URL -ErrorAction SilentlyContinue
+        }
+        else { $env:FACETS_MIGRATION_URL = $previousRuntime['FACETS_MIGRATION_URL'] }
+    }
 }
 
 function Initialize-DatabaseRoles {
     foreach ($key in @('FACETS_APP_PASSWORD', 'FACETS_MIGRATOR_PASSWORD', 'FACETS_ACCESS_KEY')) {
         $text = Get-Content '.env' -Raw
-        if ($text -notmatch "(?m)^$key=.+$") {
+        if ($text -notmatch "(?m)^$key=[^\r\n]+\r?$") {
             $password = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
             if ($text -match "(?m)^$key=.*$") { $text = [regex]::Replace($text, "(?m)^$key=.*$", "$key=$password") }
             else { $text += "`n$key=$password`n" }
@@ -306,8 +311,12 @@ try {
 }
 finally {
     if ($null -ne $validationLock) { $validationLock.Dispose() }
-    $env:GOTOOLCHAIN = $previousToolchain
-    foreach ($key in $previousRuntime.Keys) { [Environment]::SetEnvironmentVariable($key, $previousRuntime[$key], 'Process') }
+    if ($null -eq $previousToolchain) { Remove-Item Env:GOTOOLCHAIN -ErrorAction SilentlyContinue }
+    else { $env:GOTOOLCHAIN = $previousToolchain }
+    foreach ($key in $previousRuntime.Keys) {
+        if ($null -eq $previousRuntime[$key]) { Remove-Item "Env:$key" -ErrorAction SilentlyContinue }
+        else { [Environment]::SetEnvironmentVariable($key, $previousRuntime[$key], 'Process') }
+    }
     Pop-Location
     Write-Host ('Task {0} elapsed: {1:N2}s' -f $Task, $taskTimer.Elapsed.TotalSeconds)
 }
