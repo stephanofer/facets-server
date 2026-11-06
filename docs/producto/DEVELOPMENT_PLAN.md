@@ -1,7 +1,7 @@
 # Plan de desarrollo por bloques
 
 **Estado:** bloques 1–3 cerrados y verificados; bloques 4–14 pendientes.  
-**Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](AGENTS.md).
+**Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](../../AGENTS.md).
 
 ## 1. Propósito y alcance
 

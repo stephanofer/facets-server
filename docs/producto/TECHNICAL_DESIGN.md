@@ -2,7 +2,7 @@
 
 **Estado:** base acordada para implementación, evolutiva.  
 **Fecha de referencia:** 29 de octubre de 2026.  
-**Documentos relacionados:** [diseño de producto](PRODUCT_DESIGN.md) e [instrucciones del proyecto](AGENTS.md).
+**Documentos relacionados:** [diseño de producto](PRODUCT_DESIGN.md) e [instrucciones del proyecto](../../AGENTS.md).
 
 ## 1. Propósito y evolución
 
