@@ -47,8 +47,6 @@ WHERE principal_id=$1 AND revoked_at IS NULL AND expires_at>$2 AND seen_at>$3
 ORDER BY id LIMIT $4;
 -- name: CountSessions :one
 SELECT count(*) FROM sessions WHERE principal_id=$1 AND revoked_at IS NULL AND expires_at>$2 AND seen_at>$3;
--- name: SetContext :exec
-UPDATE sessions SET active_space=$2 WHERE id=$1;
 -- name: InsertToken :exec
 INSERT INTO identity_tokens(id,principal_id,purpose,verifier,target_email,expires_at)
 VALUES ($1,$2,$3,$4,$5,$6);

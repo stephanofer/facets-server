@@ -308,12 +308,6 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 	}) (SpaceView, error) {
 		return s.Space(ctx, in.Authorization, in.SpaceID)
 	})
-	r.register("POST", "/v1/spaces/{space_id}/select", "select-context", func(ctx context.Context, in *struct {
-		AuthorizationInput
-		SpacePathInput
-	}) (acknowledgement, error) {
-		return ack(s.SelectContext(ctx, in.Authorization, in.SpaceID))
-	})
 	r.register("PUT", "/v1/spaces/{space_id}", "edit-space", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput

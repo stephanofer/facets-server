@@ -14,10 +14,11 @@ impersonation or public administrative-registration endpoints in this block.
 ```
 
 `db-config` preserves existing local configuration, creates `FACETS_ACCESS_KEY`
-when absent, applies migration **2** explicitly and grants runtime permissions.
-Migration 1 is unchanged. The application rejects an incompatible schema and
+when absent, applies migrations through **3** explicitly and grants runtime permissions.
+Migrations 1 and 2 are unchanged. Migration 3 removes session-level space selection
+without revoking existing sessions. The application rejects an incompatible schema and
 does not migrate at startup. Upgrade tests retain an existing block-2 receipt;
-the execution regression also migrates an empty database through version 2.
+the execution regression also migrates an empty database through version 3.
 
 The API needs a 32-byte random key encoded as 64 hexadecimal characters. Supply
 it outside source control, separately from PostgreSQL backups, and identically
@@ -137,9 +138,9 @@ confirmation/result state and reauthenticate when needed.
 UUID cursors (maximum page size 100). The listing applies current effective read
 capabilities in SQL before pagination; restricted/expired spaces are not exposed
 through a separate unchecked listing. Financial context is explicit in routes.
-`POST /v1/spaces/{space_id}/select` changes only that session's convenience
-selection; it does not redirect commands or synchronize another device. A stale
-selection does not authorize access after membership removal.
+The client stores its selected space locally. There is no selection endpoint or
+selected-space state in the session/profile. Every space-scoped request identifies
+the space explicitly and revalidates access; client selection never grants permission.
 
 Space settings include purpose, base presentation currency, zone, locale,
 nominal period day and proposed visibility for new accounts. Changing purpose

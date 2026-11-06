@@ -78,7 +78,7 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	// Exercise upgrade from the published block-2 schema with existing receipts.
-	// The execution suite separately exercises an empty database through version 2.
+	// The execution suite separately exercises an empty database through version 3.
 	files, err := migrations.Files()
 	if err != nil {
 		t.Fatal(err)
@@ -453,7 +453,7 @@ func TestAccess(t *testing.T) {
 		f.request[httpapi.Problem](t, "GET", "/v1/me", restored.Token, "", nil, 401)
 		f.request[access.SessionResult](t, "POST", "/v1/auth/login", "", "", access.Credentials{Email: u.Email, Password: newPassword, Device: "after disable"}, 200)
 	})
-	t.Run("space contexts versions receipts and role isolation", func(t *testing.T) {
+	t.Run("explicit space access versions receipts and role isolation", func(t *testing.T) {
 		f.reset(t)
 		owner := f.newUser(t, "owner@example.test")
 		reader := f.newUser(t, "reader@example.test")
@@ -468,12 +468,8 @@ func TestAccess(t *testing.T) {
 			t.Fatal("unstable cursor")
 		}
 		f.request[httpapi.Problem](t, "GET", "/v1/spaces/"+owner.SpaceID, outsider.Token, "", nil, 404)
-		f.request[map[string]any](t, "POST", "/v1/spaces/"+owner.SpaceID+"/select", reader.Token, "", nil, 200)
-		another := f.request[access.SessionResult](t, "POST", "/v1/auth/login", "", "", access.Credentials{Email: reader.Email, Password: reader.Password, Device: "other"}, 200)
-		p := f.request[access.Profile](t, "GET", "/v1/me", another.Token, "", nil, 200)
-		if p.ActiveSpace != "" {
-			t.Fatal("context leaked across devices")
-		}
+		f.request[access.SpaceView](t, "GET", "/v1/spaces/"+owner.SpaceID, reader.Token, "", nil, 200)
+		f.request[access.SpaceView](t, "GET", "/v1/spaces/"+reader.SpaceID, reader.Token, "", nil, 200)
 		v := f.request[access.SpaceView](t, "GET", "/v1/spaces/"+owner.SpaceID, owner.Token, "", nil, 200)
 		v.Settings.Name = "Edited space"
 		edit := map[string]any{"settings": v.Settings, "version": v.Version}

@@ -256,7 +256,7 @@ func (q *Queries) FindPrincipal(ctx context.Context, arg FindPrincipalParams) (P
 }
 
 const findSession = `-- name: FindSession :one
-SELECT id, principal_id, verifier, device, created_at, seen_at, expires_at, reauthenticated_at, revoked_at, active_space FROM sessions WHERE verifier=$1
+SELECT id, principal_id, verifier, device, created_at, seen_at, expires_at, reauthenticated_at, revoked_at FROM sessions WHERE verifier=$1
 `
 
 func (q *Queries) FindSession(ctx context.Context, verifier []byte) (Session, error) {
@@ -272,7 +272,6 @@ func (q *Queries) FindSession(ctx context.Context, verifier []byte) (Session, er
 		&i.ExpiresAt,
 		&i.ReauthenticatedAt,
 		&i.RevokedAt,
-		&i.ActiveSpace,
 	)
 	return i, err
 }
@@ -998,7 +997,7 @@ func (q *Queries) ListSpaces(ctx context.Context, arg ListSpacesParams) ([]ListS
 }
 
 const lockSession = `-- name: LockSession :one
-SELECT id, principal_id, verifier, device, created_at, seen_at, expires_at, reauthenticated_at, revoked_at, active_space FROM sessions WHERE id=$1 FOR UPDATE
+SELECT id, principal_id, verifier, device, created_at, seen_at, expires_at, reauthenticated_at, revoked_at FROM sessions WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockSession(ctx context.Context, id string) (Session, error) {
@@ -1014,7 +1013,6 @@ func (q *Queries) LockSession(ctx context.Context, id string) (Session, error) {
 		&i.ExpiresAt,
 		&i.ReauthenticatedAt,
 		&i.RevokedAt,
-		&i.ActiveSpace,
 	)
 	return i, err
 }
@@ -1331,20 +1329,6 @@ func (q *Queries) ScrubTokenRecipients(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const setContext = `-- name: SetContext :exec
-UPDATE sessions SET active_space=$2 WHERE id=$1
-`
-
-type SetContextParams struct {
-	ID          string
-	ActiveSpace string
-}
-
-func (q *Queries) SetContext(ctx context.Context, arg SetContextParams) error {
-	_, err := q.db.Exec(ctx, setContext, arg.ID, arg.ActiveSpace)
-	return err
 }
 
 const setMFA = `-- name: SetMFA :exec

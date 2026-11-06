@@ -196,7 +196,7 @@ La salida con cuentas privadas bajo responsabilidad del integrante requiere un f
 
 El usuario cambia de espacio mediante un selector visible. Cuentas, formularios, reportes y conversaciones muestran el contexto correspondiente. Una operación iniciada en un espacio no cambia de destino por navegar a otro.
 
-Las notificaciones abren el espacio correcto después de comprobar el acceso. Cada dispositivo puede tener un espacio activo diferente. No se incluye un panel consolidado entre todos los espacios.
+Las notificaciones abren el espacio correcto después de comprobar el acceso. Cada cliente conserva su selección localmente y cada dispositivo puede tener un espacio activo diferente. El servidor comprueba el acceso al espacio indicado en cada solicitud, sin almacenar la selección. No se incluye un panel consolidado entre todos los espacios.
 
 ### 6.9. Planes y suscripciones comerciales por espacio
 

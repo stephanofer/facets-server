@@ -84,7 +84,7 @@ func (d *DB) Ready(ctx context.Context) error {
 	if err := d.Pool.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
 		return oops.In("database.ready").Code("migrations_unavailable").Wrap(err)
 	}
-	if version != 2 {
+	if version != 3 {
 		return oops.In("database.ready").Code("migration_version_mismatch").Errorf("database migration version mismatch")
 	}
 	return nil

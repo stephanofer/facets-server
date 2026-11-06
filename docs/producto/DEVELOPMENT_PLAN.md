@@ -114,7 +114,7 @@ La [documentación de ejecución](docs/EXECUTION.md) vincula requisitos con prue
 
 **Trabajo, en orden:**
 1. Implementar registro, verificación, acceso, recuperación y cambios de credenciales; sesiones por dispositivo, MFA y códigos de recuperación. Crear el espacio personal de forma idempotente al completar el alta.
-2. Implementar espacios adicionales, configuración, membresías, roles y selección de contexto autorizado mediante la API; identidad/sesión administrativa separada con MFA obligatorio, sin gestión interna financiera todavía.
+2. Implementar espacios adicionales, configuración, membresías, roles y autorización del contexto explícito de cada solicitud mediante la API; la selección se conserva en el cliente. Identidad/sesión administrativa separada con MFA obligatorio, sin gestión interna financiera todavía.
 3. Construir el control central de capacidades y consumos por espacio, estado efectivo y responsabilidad de facturación. Debe poder autorizar acciones con estado persistido y probado, no devolver siempre permitido. La gestión integral y confirmaciones externas se entregan en el bloque 13.
 4. Implementar invitaciones y su revalidación al aceptar, transferencia de propiedad, retiro/salida y revocación. Preparar la comprobación de acceso a recursos y derivados que utilizarán los módulos siguientes.
 5. Implementar preferencias personales y de notificación y verificar mediante la API los flujos de acceso, sesiones, espacios e invitaciones. Las solicitudes de datos personales se completan cuando existen todos los recursos, en el bloque 13.

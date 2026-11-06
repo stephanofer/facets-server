@@ -84,7 +84,6 @@ type Session struct {
 	ExpiresAt         pgtype.Timestamptz
 	ReauthenticatedAt pgtype.Timestamptz
 	RevokedAt         pgtype.Timestamptz
-	ActiveSpace       string
 }
 
 type Space struct {

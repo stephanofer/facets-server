@@ -270,7 +270,7 @@ Sesiones opacas en PostgreSQL, independientes por dispositivo; no JWT autoconten
 El permiso efectivo exige identidad vigente, membresía vigente, facultad del espacio, permiso sobre los datos y capacidad aplicable. Ninguno sustituye a los demás.
 
 - Un usuario pertenece a varios espacios; al registrarse obtiene su espacio personal mediante un flujo idempotente sin altas parciales.
-- Toda acción financiera identifica el espacio explícitamente. Cambiar el selector no cambia el destino de una operación iniciada ni existe un espacio activo global impuesto a todos los dispositivos.
+- Toda acción financiera identifica el espacio explícitamente. El cliente conserva la selección localmente; el servidor no almacena un espacio seleccionado en la sesión ni en el perfil. Cambiar el selector no cambia el destino de una operación iniciada ni existe un espacio activo global impuesto a todos los dispositivos.
 - Propietario/administrador no equivale a lector de cuentas privadas. Un lector nunca obtiene operación por una excepción de cuenta.
 - Consultar y operar no conceden administración de accesos, responsabilidad ni eliminación.
 - Ser responsable no acredita titularidad bancaria. Registrar una contraparte no crea un usuario.

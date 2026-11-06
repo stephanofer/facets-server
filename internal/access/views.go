@@ -18,7 +18,6 @@ type Profile struct {
 	Notifications bool   `json:"notifications"`
 	MFA           bool   `json:"mfa_enabled"`
 	Version       int64  `json:"version"`
-	ActiveSpace   string `json:"active_space,omitempty"`
 }
 type Preferences struct {
 	Name          string `json:"name" minLength:"1" maxLength:"100"`
@@ -112,7 +111,7 @@ func (s *Service) Departure(ctx context.Context, authorization, id string) (Depa
 func profile(a Actor) Profile {
 	p := a.principal
 	return Profile{ID: p.ID, Email: p.Email, Name: p.DisplayName, Locale: p.Locale, Zone: p.Zone, Notifications: p.Notifications,
-		MFA: len(p.MfaSecret) > 0, Version: p.Version, ActiveSpace: a.session.ActiveSpace}
+		MFA: len(p.MfaSecret) > 0, Version: p.Version}
 }
 
 func (s *Service) withActor(ctx context.Context, authorization, realm string, exclusive bool, fn func(context.Context, pgx.Tx, Actor) error) error {
@@ -246,12 +245,4 @@ func (s *Service) Space(ctx context.Context, authorization, id string) (SpaceVie
 		return nil
 	})
 	return result, err
-}
-func (s *Service) SelectContext(ctx context.Context, authorization, id string) error {
-	return s.withActor(ctx, authorization, "customer", false, func(ctx context.Context, tx pgx.Tx, a Actor) error {
-		if _, err := s.AuthorizeSpace(ctx, tx, a, id, "read"); err != nil {
-			return err
-		}
-		return accessdb.New(tx).SetContext(ctx, accessdb.SetContextParams{ID: a.session.ID, ActiveSpace: id})
-	})
 }
