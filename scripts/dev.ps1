@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'format', 'check', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'validate', 'db-up', 'db-down')]
+    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'format', 'check', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'verify', 'validate', 'db-up', 'db-down')]
     [string] $Task = 'validate',
     [string[]] $Packages = @('./...')
 )
@@ -24,7 +24,7 @@ function Invoke-Checked {
     try {
         & $File @Arguments
         if ($LASTEXITCODE -ne 0) {
-            throw "$File failed (exit $LASTEXITCODE)."
+            throw "$File $($Arguments -join ' ') failed (exit $LASTEXITCODE)."
         }
     }
     finally {
@@ -267,6 +267,8 @@ try {
         'integration' { Invoke-Integration }
         'race' { Invoke-Race }
         'lint' { Invoke-Checked go @('tool', 'golangci-lint', 'run') }
+        # Cache integrity is intentionally separate from local code validation.
+        'verify' { Invoke-Checked go @('mod', 'verify') }
         'db-up' {
             Assert-Docker
             Invoke-Checked docker @('compose', '--env-file', '.env', 'up', '-d', '--wait', '--wait-timeout', '90', 'postgres')
@@ -284,13 +286,11 @@ try {
             $sourceBefore = Get-ValidationFingerprint
             Invoke-Doctor
             Invoke-Format -Check
-            # Catch cheap code/test/lint failures before module verification,
-            # containers, race detection and vulnerability scanning.
+            Invoke-Checked pwsh @('-NoProfile', '-File', (Join-Path $root 'scripts/test-dev.ps1'))
+            # Fail on inexpensive tests and stale generated files before lint,
+            # race detection, vulnerability scanning and the final build.
             Invoke-Checked go @('test', '-count=1', '-timeout=2m', './...')
-            Invoke-Checked go @('vet', '-tags=integration', './...')
-            Invoke-Checked go @('tool', 'golangci-lint', 'run')
             Invoke-Checked go @('mod', 'tidy', '-diff')
-            Invoke-Checked go @('mod', 'verify')
             Invoke-Checked go @('tool', 'sqlc', 'compile')
             Assert-Generation
             $schemaBefore = (Get-FileHash 'docs/openapi.json' -Algorithm SHA256).Hash
@@ -298,14 +298,18 @@ try {
             if ($schemaBefore -ne (Get-FileHash 'docs/openapi.json' -Algorithm SHA256).Hash) { throw 'OpenAPI contract is stale. Review generated changes.' }
             Invoke-Checked go @('tool', 'goose', '-dir', 'tests/environment/testdata/migrations', 'validate')
             Invoke-Checked go @('tool', 'goose', '-dir', 'migrations/sql', 'validate')
+            # Exercise real database behavior before the slower static analysis.
+            # Keep heavy checks serial to avoid saturating the development host.
             Invoke-Integration
+            Invoke-Checked go @('vet', '-tags=integration', './...')
+            Invoke-Checked go @('tool', 'golangci-lint', 'run')
             Invoke-Race
             Invoke-Checked go @('tool', 'govulncheck', '-tags=integration', '-test', './...')
             Invoke-Build
             if ($sourceBefore -ne (Get-ValidationFingerprint)) {
                 throw 'Validation inputs changed while checks were running. This is not a valid closure run; stabilize files before retrying.'
             }
-            Write-Host 'All backend validation gates passed.'
+            Write-Host 'Backend code validation passed. Module cache integrity is separate: run ./scripts/dev.ps1 verify (also required in CI).'
         }
     }
 }

@@ -200,10 +200,15 @@ bounded batch processor. Exported spans never contain SQL, attributes/events,
 URLs, bodies or private descriptions. Operational error logging retains safe
 stack locations/SQLSTATE rather than serializing raw driver errors.
 
-`./scripts/dev.ps1 validate` is the closure gate: formatting, tidy/module integrity,
+`./scripts/dev.ps1 validate` is the code closure gate: formatting, script checks, tidy,
 sqlc/OpenAPI drift, Goose validation, vet/lint/security, deterministic tests, real
 PostgreSQL concurrency/recovery/SES HTTPS/HTTP integration, Linux race detector,
-govulncheck and artifact inspection. Docker failures do not skip integration.
+govulncheck and artifact inspection. Module cache integrity is a separate
+`./scripts/dev.ps1 verify` task; CI requires both tasks. Local code validation does
+not attest cache integrity. Generated-file and integration failures are checked
+before the slower lint stage; heavy checks remain serial and required test runs
+remain uncached. Use `check -Packages` during iteration rather than repeatedly
+running the closure gate. Docker failures do not skip integration.
 The tests use no real financial data and no local `.env` credentials.
 
 ### Requirement-to-evidence map

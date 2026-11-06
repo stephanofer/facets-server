@@ -91,7 +91,7 @@ SELECT s.*,m.id AS membership_id,m.role FROM spaces s JOIN memberships m ON m.sp
 JOIN space_access a ON a.space_id=s.id
 JOIN space_capabilities c ON c.space_id=s.id AND c.capability='read'
 WHERE m.principal_id=$1 AND m.ended_at IS NULL AND s.id>$2
-AND a.state='active' AND a.valid_from<=clock_timestamp() AND a.valid_until>clock_timestamp()
+AND a.state='active' AND a.valid_from<=sqlc.arg(as_of)::timestamptz AND a.valid_until>sqlc.arg(as_of)::timestamptz
 AND c.ceiling>0 AND c.used<=c.ceiling
 ORDER BY s.id LIMIT $3;
 -- name: EditSpace :execrows

@@ -320,7 +320,7 @@ func (f *fixture) newUser(t *testing.T, email string) user {
 	u.ID = p.ID
 	spaces := f.request[access.Page[access.SpaceView]](t, "GET", "/v1/spaces", u.Token, "", nil, 200)
 	if len(spaces.Items) != 1 {
-		t.Fatal("personal space missing or duplicated")
+		t.Fatalf("personal space count = %d; want 1", len(spaces.Items))
 	}
 	u.SpaceID, u.MemberID = spaces.Items[0].ID, spaces.Items[0].MembershipID
 	return u

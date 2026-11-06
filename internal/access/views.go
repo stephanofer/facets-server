@@ -213,7 +213,8 @@ func (s *Service) Spaces(ctx context.Context, authorization, cursor string, limi
 		return result, err
 	}
 	err := s.withActor(ctx, authorization, "customer", false, func(ctx context.Context, tx pgx.Tx, a Actor) error {
-		rows, err := accessdb.New(tx).ListSpaces(ctx, accessdb.ListSpacesParams{PrincipalID: a.ID(), ID: cursor, Limit: limit + 1})
+		// Use the application clock, as creation and capability authorization do.
+		rows, err := accessdb.New(tx).ListSpaces(ctx, accessdb.ListSpacesParams{PrincipalID: a.ID(), ID: cursor, AsOf: instant(time.Now()), Limit: limit + 1})
 		if err != nil {
 			return err
 		}

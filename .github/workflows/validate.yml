@@ -31,3 +31,5 @@ jobs:
         run: ./scripts/dev.ps1 validate
       - name: Check generated and module files remain unchanged
         run: git diff --exit-code
+      - name: Verify module cache integrity
+        run: ./scripts/dev.ps1 verify

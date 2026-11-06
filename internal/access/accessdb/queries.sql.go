@@ -928,7 +928,7 @@ SELECT s.id, s.name, s.purpose, s.currency, s.zone, s.locale, s.period_day, s.ne
 JOIN space_access a ON a.space_id=s.id
 JOIN space_capabilities c ON c.space_id=s.id AND c.capability='read'
 WHERE m.principal_id=$1 AND m.ended_at IS NULL AND s.id>$2
-AND a.state='active' AND a.valid_from<=clock_timestamp() AND a.valid_until>clock_timestamp()
+AND a.state='active' AND a.valid_from<=$4::timestamptz AND a.valid_until>$4::timestamptz
 AND c.ceiling>0 AND c.used<=c.ceiling
 ORDER BY s.id LIMIT $3
 `
@@ -937,6 +937,7 @@ type ListSpacesParams struct {
 	PrincipalID string
 	ID          string
 	Limit       int32
+	AsOf        pgtype.Timestamptz
 }
 
 type ListSpacesRow struct {
@@ -957,7 +958,12 @@ type ListSpacesRow struct {
 }
 
 func (q *Queries) ListSpaces(ctx context.Context, arg ListSpacesParams) ([]ListSpacesRow, error) {
-	rows, err := q.db.Query(ctx, listSpaces, arg.PrincipalID, arg.ID, arg.Limit)
+	rows, err := q.db.Query(ctx, listSpaces,
+		arg.PrincipalID,
+		arg.ID,
+		arg.Limit,
+		arg.AsOf,
+	)
 	if err != nil {
 		return nil, err
 	}
