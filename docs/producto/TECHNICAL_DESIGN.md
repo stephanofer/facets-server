@@ -535,7 +535,7 @@ Una funcionalidad está terminada cuando contempla permisos, incompletitud, rein
 
 ### 19.4. Concreción de la base de ejecución
 
-La implementación del bloque 2 se documenta en [garantías y operación](docs/EXECUTION.md). No modifica las reglas financieras ni adelanta identidad: expone únicamente salud y contrato técnico. La consulta/reintento de trabajos es una tarea operativa con acceso de sistema y credenciales restringidas, no una API anónima ni un reemplazo de la administración del bloque 13.
+El bloque 2 no modifica las reglas financieras ni adelanta identidad: expone únicamente salud y contrato técnico. La consulta/reintento de trabajos es una tarea operativa con acceso de sistema y credenciales restringidas, no una API anónima ni un reemplazo de la administración del bloque 13.
 
 - Goose utiliza migraciones embebidas, ejecución explícita y exclusión mediante advisory lock de sesión. La ejecución ordinaria comprueba el esquema y rechaza credenciales excesivas; no aplica migraciones al arrancar.
 - El outbox y la cola comparten `jobs`; no se introduce otro bus o almacén. La recuperación se confirma también cuando no existe otro trabajo ejecutable. Un arrendamiento externo vencido queda incierto y requiere conciliación.
@@ -548,7 +548,7 @@ Los límites iniciales son presupuestos configurados y probados, no resultados d
 
 ### 19.5. Concreción de identidad y acceso
 
-El bloque 3 concreta sus contratos, límites, custodia de secretos y transición comercial en [identidad y acceso](docs/ACCESS.md). El área `internal/access` mantiene las identidades y la frontera de membresías/capacidades; los módulos financieros utilizarán su autorización transaccional, sin conceder acceso privado por administrar un espacio. Las concesiones y artefactos se vinculan a la identidad de la membresía vigente y a su época de acceso; reincorporarse crea otra membresía, no restaura permisos anteriores.
+El área `internal/access` mantiene las identidades y la frontera de membresías/capacidades; los módulos financieros utilizarán su autorización transaccional, sin conceder acceso privado por administrar un espacio. Las concesiones y artefactos se vinculan a la identidad de la membresía vigente y a su época de acceso; reincorporarse crea otra membresía, no restaura permisos anteriores.
 
 La migración 2 amplía la base sin modificar la migración publicada del bloque 2. El alta verificada confirma conjuntamente identidad, espacio personal, propietario, capacidades y auditoría. Los tokens invalidables almacenan verificadores; solo su entrega durable conserva material cifrado transitorio y separado, con caducidad, revalidación y limpieza. No se guarda el token utilizable en texto claro ni en el payload del outbox. El cifrado utiliza AES-GCM con nonce aleatorio de la biblioteca estándar y contexto autenticado, bajo una clave externa a PostgreSQL.
 

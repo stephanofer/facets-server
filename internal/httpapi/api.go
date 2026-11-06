@@ -93,6 +93,16 @@ func New(o Options) (*API, error) {
 	}
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("Facets server", "0.3.0")
+	cfg.Info.Description = "Backend for the Facets finance tracker, managing customer accounts, secure access, and shared financial spaces."
+	cfg.Servers = []*huma.Server{{URL: "http://127.0.0.1:8080", Description: "Local development server"}}
+	cfg.Tags = []*huma.Tag{
+		{Name: "Health", Description: "Service liveness and readiness probes."},
+		{Name: "Auth", Description: "Customer registration, authentication, and password recovery."},
+		{Name: "Account", Description: "Authenticated customer profile, preferences, sessions, and security settings."},
+		{Name: "Spaces", Description: "Shared spaces, capabilities, membership, ownership, and billing responsibility."},
+		{Name: "Invitations", Description: "Space invitations and recipient previews and decisions."},
+		{Name: "Internal", Description: "Staff authentication, sessions, and account security."},
+	}
 	cfg.OpenAPIPath = "/v1/openapi"
 	cfg.DocsPath = ""
 	cfg.SchemasPath = ""
@@ -111,16 +121,16 @@ func New(o Options) (*API, error) {
 		}
 		next(ctx)
 	})
-	register := func(path, id string, handler func(context.Context, *struct{}) (*Health, error)) {
+	register := func(path, id, summary string, handler func(context.Context, *struct{}) (*Health, error)) {
 		responses := ErrorResponses(api, 400, 405, 413, 422, 500, 503)
-		huma.Register(api, huma.Operation{OperationID: id, Method: http.MethodGet, Path: path, Summary: id, Responses: responses}, handler)
+		huma.Register(api, huma.Operation{OperationID: id, Method: http.MethodGet, Path: path, Summary: summary, Tags: []string{"Health"}, Responses: responses}, handler)
 	}
-	register("/v1/health/live", "liveness", func(context.Context, *struct{}) (*Health, error) {
+	register("/v1/health/live", "liveness", "Check liveness", func(context.Context, *struct{}) (*Health, error) {
 		r := new(Health)
 		r.Body.Status = "ok"
 		return r, nil
 	})
-	register("/v1/health/ready", "readiness", func(ctx context.Context, _ *struct{}) (*Health, error) {
+	register("/v1/health/ready", "readiness", "Check readiness", func(ctx context.Context, _ *struct{}) (*Health, error) {
 		if err := o.Ping(ctx); err != nil {
 			return nil, problem(ctx, 503, "not_ready")
 		}

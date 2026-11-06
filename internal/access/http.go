@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5"
@@ -24,7 +25,8 @@ type reference struct {
 	ID string `json:"id"`
 }
 type AuthorizationInput struct {
-	Authorization string `header:"Authorization" maxLength:"200"`
+	// Security schemes document authentication; keep header parsing and validation at runtime.
+	Authorization string `header:"Authorization" maxLength:"200" hidden:"true"`
 }
 type ActionKeyInput struct {
 	Key string `header:"Idempotency-Key" required:"true" pattern:"^[A-Za-z0-9._:-]{1,128}$" minLength:"1" maxLength:"128"`
@@ -56,6 +58,33 @@ type factorBody struct {
 type confirmBody struct {
 	Confirm bool `json:"confirm"`
 }
+type changeMemberRoleBody struct {
+	Role    string `json:"role" enum:"admin,member,reader"`
+	Confirm bool   `json:"confirm"`
+}
+type resetPasswordBody struct {
+	Token    string `json:"token" minLength:"43" maxLength:"43"`
+	Password string `json:"password" minLength:"15" maxLength:"1024"`
+	Code     string `json:"code,omitempty" maxLength:"100"`
+}
+type revokeSessionBody struct {
+	ID  string `json:"id" maxLength:"36"`
+	All bool   `json:"all"`
+}
+type editSpaceBody struct {
+	Settings SpaceSettings `json:"settings"`
+	Version  int64         `json:"version" minimum:"1"`
+}
+type transferOwnershipBody struct {
+	Member  string `json:"member_id" format:"uuid"`
+	Confirm bool   `json:"confirm"`
+}
+type mfaSetup struct {
+	URI string `json:"uri"`
+}
+type recoveryCodes struct {
+	Codes []string `json:"recovery_codes"`
+}
 type originKey struct{}
 
 func origin(ctx context.Context) string { v, _ := ctx.Value(originKey{}).(string); return v }
@@ -66,8 +95,8 @@ type routes struct {
 	log     *slog.Logger
 }
 
-func (r *routes) register[I, O any](method, path, id string, handler func(context.Context, *I) (O, error)) {
-	operation := huma.Operation{OperationID: id, Method: method, Path: path, Summary: id, MaxBodyBytes: 16 << 10,
+func (r *routes) register[I, O any](method, path, id, summary string, handler func(context.Context, *I) (O, error)) {
+	operation := huma.Operation{OperationID: id, Method: method, Path: path, Summary: summary, Tags: []string{operationTag(path)}, MaxBodyBytes: 16 << 10,
 		Responses: httpapi.ErrorResponses(r.api, 400, 401, 403, 404, 409, 413, 422, 429, 500, 503, 504)}
 	if path != "/v1/auth/register" && path != "/v1/auth/login" && path != "/v1/auth/verify" && path != "/v1/auth/verification" && path != "/v1/auth/recovery" && path != "/v1/auth/password-reset" && path != "/v1/internal/auth/login" {
 		scheme := "customerSession"
@@ -83,6 +112,23 @@ func (r *routes) register[I, O any](method, path, id string, handler func(contex
 		}
 		return &response[O]{Body: out}, nil
 	})
+}
+
+func operationTag(path string) string {
+	switch {
+	case strings.HasPrefix(path, "/v1/internal/"):
+		return "Internal"
+	case strings.HasPrefix(path, "/v1/auth/"):
+		return "Auth"
+	case path == "/v1/me" || strings.HasPrefix(path, "/v1/me/"):
+		return "Account"
+	case strings.HasPrefix(path, "/v1/invitations/") || strings.HasPrefix(path, "/v1/spaces/{space_id}/invitations"):
+		return "Invitations"
+	case path == "/v1/spaces" || strings.HasPrefix(path, "/v1/spaces/"):
+		return "Spaces"
+	default:
+		return ""
+	}
 }
 func (r *routes) problem(ctx context.Context, err error) error {
 	var status int
@@ -140,51 +186,44 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 		ctx = context.WithValue(ctx, auditContextKey{}, httpapi.RequestID(ctx))
 		next(huma.WithContext(c, ctx))
 	})
-	r.register("GET", "/v1/spaces/{space_id}/departure", "preview-departure", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces/{space_id}/departure", "preview-departure", "Preview space departure", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 	}) (DeparturePreview, error) {
 		return s.Departure(ctx, in.Authorization, in.SpaceID)
 	})
-	r.register("POST", "/v1/invitations/preview", "preview-invitation", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/invitations/preview", "preview-invitation", "Preview invitation", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		Body tokenBody
 	}) (InvitationPreview, error) {
 		return s.PreviewInvitation(ctx, in.Authorization, in.Body.Token)
 	})
-	r.register("POST", "/v1/spaces/{space_id}/members/{member_id}/role", "change-member-role", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/members/{member_id}/role", "change-member-role", "Change space member role", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
 		ID   string `path:"member_id" format:"uuid"`
-		Body struct {
-			Role    string `json:"role" enum:"admin,member,reader"`
-			Confirm bool   `json:"confirm"`
-		}
+		Body changeMemberRoleBody
 	}) (reference, error) {
 		if !in.Body.Confirm {
 			return ref("", ErrInvalid)
 		}
 		return ref(s.ChangeRole(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.ID, in.Body.Role))
 	})
-	r.register("POST", "/v1/auth/register", "register", func(ctx context.Context, in *struct{ Body Registration }) (acknowledgement, error) {
+	r.register("POST", "/v1/auth/register", "register", "Register customer", func(ctx context.Context, in *struct{ Body Registration }) (acknowledgement, error) {
 		return ack(s.Register(ctx, in.Body, origin(ctx)))
 	})
-	r.register("POST", "/v1/auth/verification", "request-verification", func(ctx context.Context, in *struct{ Body emailBody }) (acknowledgement, error) {
+	r.register("POST", "/v1/auth/verification", "request-verification", "Request email verification", func(ctx context.Context, in *struct{ Body emailBody }) (acknowledgement, error) {
 		return ack(s.RequestToken(ctx, in.Body.Email, "verify", origin(ctx)))
 	})
-	r.register("POST", "/v1/auth/verify", "verify-email", func(ctx context.Context, in *struct{ Body tokenBody }) (acknowledgement, error) {
+	r.register("POST", "/v1/auth/verify", "verify-email", "Verify customer email", func(ctx context.Context, in *struct{ Body tokenBody }) (acknowledgement, error) {
 		return ack(s.Verify(ctx, in.Body.Token, origin(ctx)))
 	})
-	r.register("POST", "/v1/auth/recovery", "request-recovery", func(ctx context.Context, in *struct{ Body emailBody }) (acknowledgement, error) {
+	r.register("POST", "/v1/auth/recovery", "request-recovery", "Request password recovery", func(ctx context.Context, in *struct{ Body emailBody }) (acknowledgement, error) {
 		return ack(s.RequestToken(ctx, in.Body.Email, "recover", origin(ctx)))
 	})
-	r.register("POST", "/v1/auth/password-reset", "reset-password", func(ctx context.Context, in *struct {
-		Body struct {
-			Token    string `json:"token" minLength:"43" maxLength:"43"`
-			Password string `json:"password" minLength:"15" maxLength:"1024"`
-			Code     string `json:"code,omitempty" maxLength:"100"`
-		}
+	r.register("POST", "/v1/auth/password-reset", "reset-password", "Reset customer password", func(ctx context.Context, in *struct {
+		Body resetPasswordBody
 	}) (acknowledgement, error) {
 		return ack(s.ResetPassword(ctx, ResetPassword{Token: in.Body.Token, Password: in.Body.Password, Code: in.Body.Code}, origin(ctx)))
 	})
@@ -193,76 +232,59 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 		if realm == "staff" {
 			base = "/v1/internal"
 		}
-		r.register("POST", base+"/auth/login", realm+"-login", func(ctx context.Context, in *struct{ Body Credentials }) (SessionResult, error) {
+		r.register("POST", base+"/auth/login", realm+"-login", "Sign in "+realm, func(ctx context.Context, in *struct{ Body Credentials }) (SessionResult, error) {
 			return s.Login(ctx, in.Body, realm, origin(ctx))
 		})
-		r.register("POST", base+"/auth/reauthenticate", realm+"-reauthenticate", func(ctx context.Context, in *struct {
+		r.register("POST", base+"/auth/reauthenticate", realm+"-reauthenticate", "Reauthenticate "+realm, func(ctx context.Context, in *struct {
 			AuthorizationInput
 			Body proofBody
 		}) (SessionResult, error) {
 			return s.Reauthenticate(ctx, in.Authorization, in.Body.Password, in.Body.Code, realm, origin(ctx))
 		})
-		r.register("POST", base+"/auth/logout", realm+"-logout", func(ctx context.Context, in *emptyInput) (acknowledgement, error) {
+		r.register("POST", base+"/auth/logout", realm+"-logout", "Sign out "+realm, func(ctx context.Context, in *emptyInput) (acknowledgement, error) {
 			return ack(s.RevokeSession(ctx, in.Authorization, realm, "", false))
 		})
-		r.register("GET", base+"/me", realm+"-profile", func(ctx context.Context, in *emptyInput) (Profile, error) {
+		r.register("GET", base+"/me", realm+"-profile", "Get "+realm+" profile", func(ctx context.Context, in *emptyInput) (Profile, error) {
 			return s.Profile(ctx, in.Authorization, realm)
 		})
-		r.register("GET", base+"/me/sessions", realm+"-sessions", func(ctx context.Context, in *emptyInput) ([]SessionView, error) {
+		r.register("GET", base+"/me/sessions", realm+"-sessions", "List "+realm+" sessions", func(ctx context.Context, in *emptyInput) ([]SessionView, error) {
 			return s.Sessions(ctx, in.Authorization, realm)
 		})
-		r.register("POST", base+"/me/sessions/revoke", realm+"-revoke-session", func(ctx context.Context, in *struct {
+		r.register("POST", base+"/me/sessions/revoke", realm+"-revoke-session", "Revoke "+realm+" sessions", func(ctx context.Context, in *struct {
 			AuthorizationInput
-			Body struct {
-				ID  string `json:"id" maxLength:"36"`
-				All bool   `json:"all"`
-			}
+			Body revokeSessionBody
 		}) (acknowledgement, error) {
 			return ack(s.RevokeSession(ctx, in.Authorization, realm, in.Body.ID, in.Body.All))
 		})
-		r.register("POST", base+"/me/password", realm+"-change-password", func(ctx context.Context, in *struct {
+		r.register("POST", base+"/me/password", realm+"-change-password", "Change "+realm+" password", func(ctx context.Context, in *struct {
 			AuthorizationInput
 			Body passwordBody
 		}) (acknowledgement, error) {
 			return ack(s.ChangePassword(ctx, in.Authorization, in.Body.Password, realm))
 		})
-		r.register("POST", base+"/me/mfa/setup", realm+"-setup-mfa", func(ctx context.Context, in *emptyInput) (struct {
-			URI string `json:"uri"`
-		}, error) {
+		r.register("POST", base+"/me/mfa/setup", realm+"-setup-mfa", "Set up "+realm+" MFA", func(ctx context.Context, in *emptyInput) (mfaSetup, error) {
 			uri, err := s.BeginMFA(ctx, in.Authorization, realm)
-			return struct {
-				URI string `json:"uri"`
-			}{URI: uri}, err
+			return mfaSetup{URI: uri}, err
 		})
-		r.register("POST", base+"/me/mfa/confirm", realm+"-confirm-mfa", func(ctx context.Context, in *struct {
+		r.register("POST", base+"/me/mfa/confirm", realm+"-confirm-mfa", "Confirm "+realm+" MFA setup", func(ctx context.Context, in *struct {
 			AuthorizationInput
 			Body factorBody
-		}) (struct {
-			Codes []string `json:"recovery_codes"`
-		}, error) {
+		}) (recoveryCodes, error) {
 			codes, err := s.ConfirmMFA(ctx, in.Authorization, in.Body.Code, realm, origin(ctx))
-			return struct {
-				Codes []string `json:"recovery_codes"`
-			}{Codes: codes}, err
+			return recoveryCodes{Codes: codes}, err
 		})
-		r.register("POST", base+"/me/mfa/recovery-codes", realm+"-regenerate-recovery", func(ctx context.Context, in *struct {
+		r.register("POST", base+"/me/mfa/recovery-codes", realm+"-regenerate-recovery", "Regenerate "+realm+" MFA recovery codes", func(ctx context.Context, in *struct {
 			AuthorizationInput
 			Body confirmBody
-		}) (struct {
-			Codes []string `json:"recovery_codes"`
-		}, error) {
+		}) (recoveryCodes, error) {
 			if !in.Body.Confirm {
-				return struct {
-					Codes []string `json:"recovery_codes"`
-				}{}, ErrInvalid
+				return recoveryCodes{}, ErrInvalid
 			}
 			codes, err := s.RegenerateRecoveryCodes(ctx, in.Authorization, realm)
-			return struct {
-				Codes []string `json:"recovery_codes"`
-			}{Codes: codes}, err
+			return recoveryCodes{Codes: codes}, err
 		})
 	}
-	r.register("POST", "/v1/me/mfa/disable", "disable-mfa", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/me/mfa/disable", "disable-mfa", "Disable customer MFA", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		Body confirmBody
 	}) (acknowledgement, error) {
@@ -271,75 +293,72 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 		}
 		return ack(s.DisableMFA(ctx, in.Authorization))
 	})
-	r.register("PUT", "/v1/me/preferences", "preferences", func(ctx context.Context, in *struct {
+	r.register("PUT", "/v1/me/preferences", "preferences", "Update account preferences", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		Body Preferences
 	}) (acknowledgement, error) {
 		return ack(s.Preferences(ctx, in.Authorization, in.Body))
 	})
-	r.register("POST", "/v1/me/email", "change-email-request", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/me/email", "change-email-request", "Request account email change", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		Body emailBody
 	}) (acknowledgement, error) {
 		return ack(s.ChangeEmailRequest(ctx, in.Authorization, in.Body.Email))
 	})
-	r.register("POST", "/v1/me/email/confirm", "confirm-email-change", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/me/email/confirm", "confirm-email-change", "Confirm account email change", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		Body tokenBody
 	}) (acknowledgement, error) {
 		return ack(s.ConfirmEmail(ctx, in.Authorization, in.Body.Token, origin(ctx)))
 	})
-	r.register("GET", "/v1/spaces", "list-spaces", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces", "list-spaces", "List accessible spaces", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		PagingInput
 	}) (Page[SpaceView], error) {
 		return s.Spaces(ctx, in.Authorization, in.Cursor, in.Limit)
 	})
-	r.register("POST", "/v1/spaces", "create-space", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces", "create-space", "Create space", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		ActionKeyInput
 		Body SpaceSettings
 	}) (reference, error) {
 		return ref(s.CreateSpace(ctx, in.Authorization, in.Key, in.Body))
 	})
-	r.register("GET", "/v1/spaces/{space_id}", "get-space", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces/{space_id}", "get-space", "Get space", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 	}) (SpaceView, error) {
 		return s.Space(ctx, in.Authorization, in.SpaceID)
 	})
-	r.register("PUT", "/v1/spaces/{space_id}", "edit-space", func(ctx context.Context, in *struct {
+	r.register("PUT", "/v1/spaces/{space_id}", "edit-space", "Update space settings", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
-		Body struct {
-			Settings SpaceSettings `json:"settings"`
-			Version  int64         `json:"version" minimum:"1"`
-		}
+		Body editSpaceBody
 	}) (reference, error) {
 		return ref(s.EditSpace(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.Body.Settings, in.Body.Version))
 	})
-	r.register("GET", "/v1/spaces/{space_id}/members", "list-members", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces/{space_id}/members", "list-members", "List space members", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		PagingInput
 	}) (Page[MemberView], error) {
 		return s.members(ctx, in.Authorization, in.SpaceID, in.Cursor, in.Limit)
 	})
-	r.register("GET", "/v1/spaces/{space_id}/access", "space-capabilities", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces/{space_id}/access", "space-capabilities", "Get space capabilities and commercial status", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 	}) (AccessView, error) {
 		return s.accessView(ctx, in.Authorization, in.SpaceID)
 	})
-	r.register("GET", "/v1/spaces/{space_id}/invitations", "list-invitations", func(ctx context.Context, in *struct {
+	r.register("GET", "/v1/spaces/{space_id}/invitations", "list-invitations", "List space invitations", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		PagingInput
 	}) (Page[InvitationView], error) {
 		return s.invitations(ctx, in.Authorization, in.SpaceID, in.Cursor, in.Limit)
 	})
-	r.register("POST", "/v1/spaces/{space_id}/invitations", "invite-member", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/invitations", "invite-member", "Invite space member", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
@@ -347,14 +366,14 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 	}) (reference, error) {
 		return ref(s.Invite(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.Body))
 	})
-	r.register("POST", "/v1/invitations/decision", "decide-invitation", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/invitations/decision", "decide-invitation", "Accept or decline invitation", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		ActionKeyInput
 		Body InvitationDecision
 	}) (reference, error) {
 		return ref(s.DecideInvitation(ctx, in.Authorization, in.Key, in.Body))
 	})
-	r.register("POST", "/v1/spaces/{space_id}/invitations/{invitation_id}/resend", "resend-invitation", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/invitations/{invitation_id}/resend", "resend-invitation", "Resend space invitation", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
@@ -362,7 +381,7 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 	}) (reference, error) {
 		return ref(s.ResendInvitation(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.ID))
 	})
-	r.register("POST", "/v1/spaces/{space_id}/invitations/{invitation_id}/cancel", "cancel-invitation", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/invitations/{invitation_id}/cancel", "cancel-invitation", "Cancel space invitation", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
@@ -370,7 +389,7 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 	}) (reference, error) {
 		return ref(s.CancelInvitation(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.ID))
 	})
-	r.register("POST", "/v1/spaces/{space_id}/members/{member_id}/remove", "remove-member", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/members/{member_id}/remove", "remove-member", "Remove space member", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
@@ -382,21 +401,18 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 		}
 		return ref(s.RemoveMember(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.ID))
 	})
-	r.register("POST", "/v1/spaces/{space_id}/ownership", "transfer-ownership", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/ownership", "transfer-ownership", "Transfer space ownership", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
-		Body struct {
-			Member  string `json:"member_id" format:"uuid"`
-			Confirm bool   `json:"confirm"`
-		}
+		Body transferOwnershipBody
 	}) (reference, error) {
 		if !in.Body.Confirm {
 			return ref("", ErrInvalid)
 		}
 		return ref(s.TransferOwnership(ctx, SpaceCommand{Authorization: in.Authorization, SpaceID: in.SpaceID, Key: in.Key}, in.Body.Member))
 	})
-	r.register("POST", "/v1/spaces/{space_id}/billing/claim", "claim-billing-responsibility", func(ctx context.Context, in *struct {
+	r.register("POST", "/v1/spaces/{space_id}/billing/claim", "claim-billing-responsibility", "Claim space billing responsibility", func(ctx context.Context, in *struct {
 		AuthorizationInput
 		SpacePathInput
 		ActionKeyInput
