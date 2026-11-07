@@ -1,0 +1,27 @@
+info:
+  name: void-financial-operation
+  type: http
+  seq: 35
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}/void"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{operationVoidKey}}"
+  body:
+    type: json
+    data: |-
+      {"version":{{operationVersion}},"reason":"Void synthetic operation","confirm":true}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("operationVoidKey")) { bru.setVar("operationVoidKey", bru.interpolate("{{$randomUUID}}")); }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Explicitly voids all effects and economic recognition atomically, including transfer fees. No deletion, current-date reversal or automatic reactivation. Get current detail and review every effect before confirming. Retain key, version and body for retries. A new command against an already voided operation is rejected; replay of the original command recovers its result.

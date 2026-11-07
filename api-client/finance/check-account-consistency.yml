@@ -1,0 +1,30 @@
+info:
+  name: check-account-consistency
+  type: http
+  seq: 42
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/consistency-checks"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{consistencyActionKey}}"
+  body:
+    type: json
+    data: |-
+      {"confirm":true}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("consistencyActionKey")) bru.setVar("consistencyActionKey", bru.interpolate("{{$randomUUID}}"));
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("consistencyCheckId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Reconstructs from the opening reference and current tracked effects, records both values and a discrepancy incidence if different, and never repairs the projection. Requires current account access and finance.write. Keep the action key to recover a lost response.

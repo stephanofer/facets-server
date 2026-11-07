@@ -68,3 +68,51 @@ type FinancialCatalog struct {
 	Version    int64
 	CreatedAt  pgtype.Timestamptz
 }
+
+type FinancialOperation struct {
+	ID              string
+	SpaceID         string
+	Kind            string
+	Author          string
+	Origin          string
+	CurrentRevision int64
+	CreatedAt       pgtype.Timestamptz
+}
+
+type OperationRefund struct {
+	SpaceID          string
+	OperationID      string
+	Revision         int64
+	PurchaseID       string
+	PurchaseRevision int64
+	PurchaseMinor    int64
+}
+
+type OperationRevision struct {
+	SpaceID          string
+	OperationID      string
+	Revision         int64
+	EffectiveDate    pgtype.Date
+	Author           string
+	RecordedAt       pgtype.Timestamptz
+	Note             string
+	Exceptional      bool
+	MerchantID       pgtype.Text
+	CounterpartyID   pgtype.Text
+	OriginalMinor    pgtype.Int8
+	OriginalCurrency pgtype.Text
+	ChangeKind       string
+	Reason           string
+	Voided           bool
+}
+
+type PositionEffect struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+	Ordinal     int32
+	AccountID   string
+	Kind        string
+	AmountMinor int64
+	InTracking  bool
+}

@@ -101,23 +101,50 @@ func validateParent(ctx context.Context, tx pgx.Tx, space, id string, v CatalogV
 // ResolveCatalog preserves original identifiers while resolving consolidations
 // to a current entry. Aliases are flattened transactionally, never deleted.
 func ResolveCatalog(ctx context.Context, tx pgx.Tx, space, id, kind string, forWrite bool) (CatalogView, error) {
-	v, err := financedb.New(tx).CatalogEntry(ctx, financedb.CatalogEntryParams{SpaceID: space, ID: id})
+	entries, err := resolveCatalogReferences(ctx, tx, space, []string{id})
 	if err != nil {
-		return CatalogView{}, absent(err)
+		return CatalogView{}, err
 	}
+	v := entries[id]
 	if v.Kind != kind {
 		return CatalogView{}, access.ErrInvalid
-	}
-	if v.MergedInto.Valid {
-		v, err = financedb.New(tx).CatalogEntry(ctx, financedb.CatalogEntryParams{SpaceID: space, ID: v.MergedInto.String})
-		if err != nil {
-			return CatalogView{}, err
-		}
 	}
 	if forWrite && v.Archived {
 		return CatalogView{}, access.ErrInvalid
 	}
-	return catalogView(v), nil
+	return v, nil
+}
+
+// Callers retain the space authorization lock throughout resolution and use.
+// Resolve a bounded set in one query, including flattened aliases, so operation
+// splits and tags do not cause one database round trip per component.
+func resolveCatalogReferences(ctx context.Context, tx pgx.Tx, space string, ids []string) (map[string]CatalogView, error) {
+	resolved := make(map[string]CatalogView, len(ids))
+	if len(ids) == 0 {
+		return resolved, nil
+	}
+	rows, err := financedb.New(tx).CatalogReferences(ctx, financedb.CatalogReferencesParams{SpaceID: space, Ids: ids})
+	if err != nil {
+		return nil, err
+	}
+	entries := make(map[string]financedb.FinancialCatalog, len(rows))
+	for _, row := range rows {
+		entries[row.ID] = row
+	}
+	for _, id := range ids {
+		v, ok := entries[id]
+		if !ok {
+			return nil, access.ErrNotFound
+		}
+		if v.MergedInto.Valid {
+			v, ok = entries[v.MergedInto.String]
+			if !ok {
+				return nil, access.ErrNotFound
+			}
+		}
+		resolved[id] = catalogView(v)
+	}
+	return resolved, nil
 }
 
 func (s *Service) catalogCommand(ctx context.Context, c access.SpaceCommand, content any, apply func(context.Context, pgx.Tx, access.Actor, accessdb.Membership) (string, error)) (string, error) {

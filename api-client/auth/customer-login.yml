@@ -23,7 +23,7 @@ runtime:
         if (res.status === 200) {
           bru.setVar("accessToken", res.body.token);
           bru.setVar("sessionId", res.body.session_id);
-          for (const key of ["profileVersion", "spaceId", "spaceVersion", "membershipId", "memberId", "invitationId"]) {
+          for (const key of ["profileVersion", "spaceId", "spaceVersion", "membershipId", "memberId", "invitationId", "financeSpaceId", "operationId", "operationActionKey", "operationVersion", "operationCorrectionKey", "operationVoidKey", "operationRevision", "operationRevisionCursor", "reconciliationId", "reconciliationActionKey", "consistencyCheckId", "consistencyActionKey"]) {
             bru.setVar(key, "");
           }
         }

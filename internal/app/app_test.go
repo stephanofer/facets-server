@@ -142,26 +142,42 @@ func TestOpenAPI(t *testing.T) {
 			"post /v1/internal/me/mfa/recovery-codes": "staff-regenerate-recovery",
 		},
 		"Finance": {
-			"get /v1/spaces/{space_id}/accounts/proposal":                     "propose-account-visibility",
-			"post /v1/spaces/{space_id}/accounts":                             "create-financial-account",
-			"get /v1/spaces/{space_id}/accounts":                              "list-financial-accounts",
-			"get /v1/spaces/{space_id}/accounts/{account_id}":                 "get-financial-account",
-			"put /v1/spaces/{space_id}/accounts/{account_id}":                 "edit-financial-account",
-			"get /v1/spaces/{space_id}/accounts/{account_id}/sharing":         "get-account-sharing",
-			"put /v1/spaces/{space_id}/accounts/{account_id}/sharing":         "share-financial-account",
-			"post /v1/spaces/{space_id}/accounts/{account_id}/responsibility": "transfer-account-responsibility",
-			"get /v1/spaces/{space_id}/accounts/recoverable":                  "list-recoverable-accounts",
-			"post /v1/spaces/{space_id}/accounts/{account_id}/recovery":       "recover-financial-account",
-			"post /v1/spaces/{space_id}/catalog/defaults":                     "initialize-financial-catalog",
-			"post /v1/spaces/{space_id}/catalog":                              "create-catalog-entry",
-			"get /v1/spaces/{space_id}/catalog":                               "list-catalog-entries",
-			"get /v1/spaces/{space_id}/catalog/{entry_id}":                    "get-catalog-entry",
-			"put /v1/spaces/{space_id}/catalog/{entry_id}":                    "edit-catalog-entry",
-			"post /v1/spaces/{space_id}/catalog/{entry_id}/merge":             "merge-catalog-entries",
-			"post /v1/spaces/{space_id}/exchange-references":                  "create-exchange-reference",
-			"get /v1/spaces/{space_id}/exchange-references":                   "list-exchange-references",
-			"get /v1/spaces/{space_id}/exchange-references/{entry_id}":        "get-exchange-reference",
-			"post /v1/spaces/{space_id}/exchange-conversions":                 "convert-informative-amount",
+			"get /v1/spaces/{space_id}/operations":                                     "search-financial-operations",
+			"get /v1/spaces/{space_id}/operation-suggestions":                          "suggest-operation-selections",
+			"get /v1/spaces/{space_id}/financial-summary":                              "query-financial-summary",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/reconciliation-preview":  "preview-account-reconciliation",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/reconciliations":         "reconcile-account",
+			"get /v1/spaces/{space_id}/accounts/{account_id}/reconciliations":          "list-account-reconciliations",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/consistency-checks":      "check-account-consistency",
+			"get /v1/spaces/{space_id}/accounts/{account_id}/consistency-checks":       "list-account-consistency-checks",
+			"post /v1/spaces/{space_id}/operations/{operation_id}/correction-preview":  "preview-operation-correction",
+			"put /v1/spaces/{space_id}/operations/{operation_id}":                      "correct-financial-operation",
+			"post /v1/spaces/{space_id}/operations/{operation_id}/void":                "void-financial-operation",
+			"get /v1/spaces/{space_id}/operations/{operation_id}/revisions":            "list-operation-revisions",
+			"get /v1/spaces/{space_id}/operations/{operation_id}/revisions/{revision}": "get-operation-revision",
+			"post /v1/spaces/{space_id}/operations":                                    "create-financial-operation",
+			"get /v1/spaces/{space_id}/operations/{operation_id}":                      "get-financial-operation",
+			"get /v1/spaces/{space_id}/accounts/{account_id}/history":                  "list-account-operation-history",
+			"get /v1/spaces/{space_id}/accounts/proposal":                              "propose-account-visibility",
+			"post /v1/spaces/{space_id}/accounts":                                      "create-financial-account",
+			"get /v1/spaces/{space_id}/accounts":                                       "list-financial-accounts",
+			"get /v1/spaces/{space_id}/accounts/{account_id}":                          "get-financial-account",
+			"put /v1/spaces/{space_id}/accounts/{account_id}":                          "edit-financial-account",
+			"get /v1/spaces/{space_id}/accounts/{account_id}/sharing":                  "get-account-sharing",
+			"put /v1/spaces/{space_id}/accounts/{account_id}/sharing":                  "share-financial-account",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/responsibility":          "transfer-account-responsibility",
+			"get /v1/spaces/{space_id}/accounts/recoverable":                           "list-recoverable-accounts",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/recovery":                "recover-financial-account",
+			"post /v1/spaces/{space_id}/catalog/defaults":                              "initialize-financial-catalog",
+			"post /v1/spaces/{space_id}/catalog":                                       "create-catalog-entry",
+			"get /v1/spaces/{space_id}/catalog":                                        "list-catalog-entries",
+			"get /v1/spaces/{space_id}/catalog/{entry_id}":                             "get-catalog-entry",
+			"put /v1/spaces/{space_id}/catalog/{entry_id}":                             "edit-catalog-entry",
+			"post /v1/spaces/{space_id}/catalog/{entry_id}/merge":                      "merge-catalog-entries",
+			"post /v1/spaces/{space_id}/exchange-references":                           "create-exchange-reference",
+			"get /v1/spaces/{space_id}/exchange-references":                            "list-exchange-references",
+			"get /v1/spaces/{space_id}/exchange-references/{entry_id}":                 "get-exchange-reference",
+			"post /v1/spaces/{space_id}/exchange-conversions":                          "convert-informative-amount",
 		},
 	}
 	public := []string{"register", "request-verification", "verify-email", "request-recovery", "reset-password", "customer-login", "staff-login", "liveness", "readiness"}
@@ -217,8 +233,8 @@ func TestOpenAPI(t *testing.T) {
 			})
 		}
 	}
-	if len(seen) != 68 {
-		t.Errorf("operation count = %d, want 68", len(seen))
+	if len(seen) != 84 {
+		t.Errorf("operation count = %d, want 84", len(seen))
 	}
 	if _, ok := doc.Paths["/v1/spaces/{space_id}/select"]; ok {
 		t.Error("removed space selection route remains documented")

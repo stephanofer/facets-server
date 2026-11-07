@@ -1,0 +1,30 @@
+info:
+  name: reconcile-account
+  type: http
+  seq: 40
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/reconciliations"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{reconciliationActionKey}}"
+  body:
+    type: json
+    data: |-
+      {"date":"2026-11-02","observed_minor":"115000","expected_calculated_minor":"120000","adjust":true,"reason":"Synthetic observed statement difference","confirm":true}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("reconciliationActionKey")) bru.setVar("reconciliationActionKey", bru.interpolate("{{$randomUUID}}"));
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("reconciliationId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Supply the actual observed balance and the calculated balance reviewed at the end of date (null if unknown). A stale calculated balance conflicts. Adjust confirms a separate traceable position-only operation; unknown references cannot be adjusted. Keep the action key for retries and clear it only for a distinct comparison.

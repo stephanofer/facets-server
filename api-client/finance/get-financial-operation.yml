@@ -1,0 +1,24 @@
+info:
+  name: get-financial-operation
+  type: http
+  seq: 31
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) { bru.setVar("operationVersion", res.body.revision); }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.effects
+      operator: isArray
+    - expression: res.body.components
+      operator: isArray
+    - expression: res.body.revision
+      operator: isNumber
+docs: Full detail requires current read access to all accounts. If a counter-end is restricted use the authorized account history, which does not disclose the other account or shared metadata.

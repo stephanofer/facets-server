@@ -3,6 +3,7 @@
 Block 4 introduces positions, access configuration, catalogs and manual exchange
 references. It does not introduce everyday financial operations, agreements,
 card statements or reconciliation; those use the positions in subsequent blocks.
+The first operation delivery is documented in [Financial operations](FINANCIAL_OPERATIONS.md).
 The executable contract is [OpenAPI](openapi.json); examples are in
 [`api-client/finance/`](../api-client/finance/).
 
@@ -131,8 +132,9 @@ this block does not publish a misleading consolidated account total.
 Migration 4 adds accounts and their configuration history. Migration 5 adds
 catalogs, immutable exchange provenance and scoped counterparty relations.
 Published migrations 1–3 remain unchanged. Run migrations explicitly using
-`./scripts/dev.ps1 db-config` locally; runtime readiness requires version 5 and
-never applies migrations at startup. Local provisioning grants the application
+`./scripts/dev.ps1 db-config` locally; block 4 introduced schema version 5,
+extended by migrations 6–7 for operations and retained corrections. Runtime never applies
+migrations at startup. Local provisioning grants the application
 only its required table operations.
 
 `finance.write` is a persisted action gate, not a per-account commercial quota.

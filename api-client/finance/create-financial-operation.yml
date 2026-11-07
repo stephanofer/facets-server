@@ -1,0 +1,35 @@
+info:
+  name: create-financial-operation
+  type: http
+  seq: 30
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{operationActionKey}}"
+  body:
+    type: json
+    data: |-
+      {"kind":"expense","date":"2026-11-01","applied":{"account_id":"{{accountId}}","amount_minor":"1200"},"parts":[],"fees":[],"exceptional":false,"tag_ids":[],"confirm":true}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("operationActionKey")) { bru.setVar("operationActionKey", bru.interpolate("{{$randomUUID}}")); }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          if (bru.getVar("operationId") !== res.body.id) {
+            for (const key of ["operationVersion", "operationCorrectionKey", "operationVoidKey", "operationRevision", "operationRevisionCursor"]) bru.setVar(key, "");
+          }
+          bru.setVar("operationId", res.body.id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Confirms a real expense on accountId. The action key is retained for safe retries, including a lost response. Clear operationActionKey explicitly only when starting a distinct action. Changing the body under the same key must conflict. Empty parts leave classification pending. For transfers supply received and optional categorized fees; original stores a merchant price without changing the applied account amount. For refunds use kind refund and optionally refund {operation_id, amount_minor}; this attributed amount uses the purchase account currency, while applied is the actual credit. Refund parts use expense categories and reduce net expense on the refund date, never income. References to an unreadable linked purchase are omitted from detail.

@@ -1,6 +1,6 @@
 # Plan de desarrollo por bloques
 
-**Estado:** bloques 1–4 cerrados y verificados; bloques 5–14 pendientes.  
+**Estado:** bloques 1–5 cerrados y verificados; bloques 6–14 pendientes.  
 **Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](../../AGENTS.md).
 
 ## 1. Propósito y alcance
@@ -55,7 +55,7 @@ Todos los bloques parten como **pendientes**. Se marcan únicamente cuando super
 | [x] | 2. Base de ejecución y garantías compartidas | HTTP, persistencia, trabajos y fundamentos probados. |
 | [x] | 3. Identidad, espacios y control de acceso | Usuarios reales y contexto autorizado multiespacio. |
 | [x] | 4. Cuentas y organización financiera | Posiciones, referencias iniciales, permisos y catálogos. |
-| [ ] | 5. Operaciones y consistencia financiera | Registro cotidiano, correcciones y reconciliación. |
+| [x] | 5. Operaciones y consistencia financiera | Registro cotidiano, correcciones y reconciliación. |
 | [ ] | 6. Vencimientos, aplicaciones y recurrentes | Motor común de obligaciones y agenda. |
 | [ ] | 7. Deudas, préstamos y derechos de cobro | Acuerdos y seguimiento completo de pagos y cobros. |
 | [ ] | 8. Tarjetas y compras en cuotas | Ciclos, estados y exigibilidad sin duplicar gasto. |
@@ -156,6 +156,8 @@ La colección de Bruno contiene 68 requests sincronizados con OpenAPI; `api-clie
 
 ## Bloque 5. Operaciones y consistencia financiera
 
+**Cerrado y verificado:** ingresos, compras, transferencias y devoluciones con efectos tipados, divisiones y saldos transaccionales; correcciones versionadas, anulación e historial autorizado; reconciliación con ajustes separados y avisos por historia afectada; comprobación de consistencia con incidencias; selecciones recientes, búsqueda y consultas comunes de posición, ingresos/gastos y efectivo. Contratos, límites y correspondencia con pruebas en [Financial operations](../FINANCIAL_OPERATIONS.md). No se iniciaron bloques posteriores.
+
 **Objetivo:** entregar el registro cotidiano sobre una única verdad financiera.
 
 **Prerrequisitos clave:** cuentas, permisos, clasificación, referencias cambiarias y garantías transaccionales.
@@ -170,6 +172,10 @@ La colección de Bruno contiene 68 requests sincronizados con OpenAPI; `api-clie
 **Cierre:** operaciones simples y compuestas son atómicas e idempotentes; reconstruir saldos coincide con las proyecciones. Transferir no genera ingreso/gasto, devolver reduce gasto neto y corregir historia no inventa efectivo actual. Reintentos, ediciones concurrentes y referencias restringidas están probados.
 
 **Referencias:** producto 7–11 y 17; técnico 5–7, 9, 13 y 15.1.
+
+**Cierre verificado (7 de noviembre de 2026):** `./scripts/dev.ps1 validate` completó sobre el código final formato, pruebas unitarias y de contrato, comprobación de módulos sin diferencias, generación sqlc/OpenAPI reproducible, migraciones, regresión completa PostgreSQL/HTTP, vet, lint sin avisos, detector de carreras en Linux, govulncheck y compilación/ejecución del artefacto. Las pruebas comprueban reducción del gasto por devoluciones con fecha real, capacidad de vinculación concurrente sin sobreutilizar compras, corrección/anulación sin vínculos inconsistentes, reconciliación con evidencia conservada, ajuste separado de ingreso/gasto, avisos por contribuciones históricas afectadas y discrepancias de reconstrucción sin reparación silenciosa. Se verificaron filtros, paginación autorizada, sugerencias sin automatismos, referencias consolidadas, separación de las tres lecturas y recuperación tras perder respuestas TCP y sustituir el servicio.
+
+Las migraciones 8–9 y los permisos locales se aplicaron sin borrar datos ni modificar las publicadas 6–7. La regresión completa detectó y corrigió una lista de limpieza de fixtures que omitía las nuevas tablas; no se debilitaron claves foráneas ni se agregó borrado en cascada de producción. Los 84 requests de Bruno están sincronizados: CLI 4.3.0 Safe Mode aprobó el smoke de 14 solicitudes/38 aserciones y un recorrido financiero adicional de 20 solicitudes/58 aserciones con importes sintéticos explícitos. El servidor temporal se detuvo antes de la validación final. Govulncheck informó cero vulnerabilidades alcanzables y cero en paquetes importados, con un aviso no alcanzable en módulos requeridos. No se agregaron dependencias ni se repitió la comprobación independiente de integridad de caché de módulos, ya aprobada en la continuación anterior. No se inició el bloque 6 ni se desarrollaron clientes.
 
 ## Bloque 6. Vencimientos, aplicaciones y recurrentes
 

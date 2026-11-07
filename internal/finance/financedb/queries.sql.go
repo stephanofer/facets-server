@@ -67,6 +67,59 @@ func (q *Queries) Account(ctx context.Context, arg AccountParams) (AccountRow, e
 	return i, err
 }
 
+const accountConsistencyChecks = `-- name: AccountConsistencyChecks :many
+SELECT c.id,c.projected_minor,COALESCE(c.reconstructed_minor::text,'')::text AS reconstructed,c.discrepancy,c.author,c.recorded_at
+FROM balance_consistency_checks c WHERE c.space_id=$1 AND c.account_id=$2 AND c.id>$3 ORDER BY c.id LIMIT $4
+`
+
+type AccountConsistencyChecksParams struct {
+	SpaceID   string
+	AccountID string
+	ID        string
+	Limit     int32
+}
+
+type AccountConsistencyChecksRow struct {
+	ID             string
+	ProjectedMinor pgtype.Int8
+	Reconstructed  string
+	Discrepancy    bool
+	Author         string
+	RecordedAt     pgtype.Timestamptz
+}
+
+func (q *Queries) AccountConsistencyChecks(ctx context.Context, arg AccountConsistencyChecksParams) ([]AccountConsistencyChecksRow, error) {
+	rows, err := q.db.Query(ctx, accountConsistencyChecks,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccountConsistencyChecksRow{}
+	for rows.Next() {
+		var i AccountConsistencyChecksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectedMinor,
+			&i.Reconstructed,
+			&i.Discrepancy,
+			&i.Author,
+			&i.RecordedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const accountGrants = `-- name: AccountGrants :many
 SELECT g.space_id, g.account_id, g.member_id, g.permission FROM account_grants g JOIN memberships m ON m.space_id=g.space_id AND m.id=g.member_id
 WHERE g.space_id=$1 AND g.account_id=$2 AND m.ended_at IS NULL ORDER BY g.member_id
@@ -91,6 +144,135 @@ func (q *Queries) AccountGrants(ctx context.Context, arg AccountGrantsParams) ([
 			&i.AccountID,
 			&i.MemberID,
 			&i.Permission,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const accountOperationHistory = `-- name: AccountOperationHistory :many
+SELECT o.id,o.kind,r.effective_date,e.ordinal,e.kind AS effect_kind,e.amount_minor,e.in_tracking
+FROM position_effects e
+JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(e.space_id,e.operation_id,e.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(e.space_id,e.operation_id,e.revision)
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+WHERE e.space_id=$1 AND e.account_id=$2 AND NOT r.voided
+AND (a.responsible_member=$3 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$3))))
+AND (o.id,e.ordinal)>($4::text,$5::integer)
+ORDER BY o.id,e.ordinal LIMIT $6
+`
+
+type AccountOperationHistoryParams struct {
+	SpaceID       string
+	AccountID     string
+	MemberID      string
+	Cursor        string
+	CursorOrdinal int32
+	PageSize      int32
+}
+
+type AccountOperationHistoryRow struct {
+	ID            string
+	Kind          string
+	EffectiveDate pgtype.Date
+	Ordinal       int32
+	EffectKind    string
+	AmountMinor   int64
+	InTracking    bool
+}
+
+func (q *Queries) AccountOperationHistory(ctx context.Context, arg AccountOperationHistoryParams) ([]AccountOperationHistoryRow, error) {
+	rows, err := q.db.Query(ctx, accountOperationHistory,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.MemberID,
+		arg.Cursor,
+		arg.CursorOrdinal,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccountOperationHistoryRow{}
+	for rows.Next() {
+		var i AccountOperationHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.EffectiveDate,
+			&i.Ordinal,
+			&i.EffectKind,
+			&i.AmountMinor,
+			&i.InTracking,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const accountReconciliations = `-- name: AccountReconciliations :many
+SELECT r.id,r.effective_date,r.calculated_minor,r.observed_minor,COALESCE(r.difference_minor::text,'')::text AS difference,r.adjustment_id,r.author,r.reason,r.recorded_at,
+EXISTS(SELECT 1 FROM reconciliation_reviews v WHERE (v.space_id,v.reconciliation_id)=(r.space_id,r.id))::boolean AS needs_review
+FROM account_reconciliations r WHERE r.space_id=$1 AND r.account_id=$2 AND r.id>$3 ORDER BY r.id LIMIT $4
+`
+
+type AccountReconciliationsParams struct {
+	SpaceID   string
+	AccountID string
+	ID        string
+	Limit     int32
+}
+
+type AccountReconciliationsRow struct {
+	ID              string
+	EffectiveDate   pgtype.Date
+	CalculatedMinor pgtype.Int8
+	ObservedMinor   int64
+	Difference      string
+	AdjustmentID    pgtype.Text
+	Author          string
+	Reason          string
+	RecordedAt      pgtype.Timestamptz
+	NeedsReview     bool
+}
+
+func (q *Queries) AccountReconciliations(ctx context.Context, arg AccountReconciliationsParams) ([]AccountReconciliationsRow, error) {
+	rows, err := q.db.Query(ctx, accountReconciliations,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AccountReconciliationsRow{}
+	for rows.Next() {
+		var i AccountReconciliationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EffectiveDate,
+			&i.CalculatedMinor,
+			&i.ObservedMinor,
+			&i.Difference,
+			&i.AdjustmentID,
+			&i.Author,
+			&i.Reason,
+			&i.RecordedAt,
+			&i.NeedsReview,
 		); err != nil {
 			return nil, err
 		}
@@ -177,6 +359,46 @@ func (q *Queries) Accounts(ctx context.Context, arg AccountsParams) ([]AccountsR
 	return items, nil
 }
 
+const advanceOperationRevision = `-- name: AdvanceOperationRevision :execrows
+UPDATE financial_operations SET current_revision=current_revision+1
+WHERE space_id=$1 AND id=$2 AND current_revision=$3
+`
+
+type AdvanceOperationRevisionParams struct {
+	SpaceID         string
+	ID              string
+	CurrentRevision int64
+}
+
+func (q *Queries) AdvanceOperationRevision(ctx context.Context, arg AdvanceOperationRevisionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, advanceOperationRevision, arg.SpaceID, arg.ID, arg.CurrentRevision)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const balanceAtDate = `-- name: BalanceAtDate :one
+SELECT COALESCE((a.opening_minor::numeric+COALESCE((SELECT sum(e.amount_minor) FROM position_effects e
+JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(e.space_id,e.operation_id,e.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(e.space_id,e.operation_id,e.revision)
+WHERE e.space_id=a.space_id AND e.account_id=a.id AND e.in_tracking AND NOT r.voided AND r.effective_date<=$1),0))::text,'')::text AS amount_minor
+FROM financial_accounts a WHERE a.space_id=$2 AND a.id=$3
+`
+
+type BalanceAtDateParams struct {
+	EffectiveDate pgtype.Date
+	SpaceID       string
+	AccountID     string
+}
+
+func (q *Queries) BalanceAtDate(ctx context.Context, arg BalanceAtDateParams) (string, error) {
+	row := q.db.QueryRow(ctx, balanceAtDate, arg.EffectiveDate, arg.SpaceID, arg.AccountID)
+	var amount_minor string
+	err := row.Scan(&amount_minor)
+	return amount_minor, err
+}
+
 const captureAccountConfiguration = `-- name: CaptureAccountConfiguration :exec
 INSERT INTO account_configuration_history(space_id,account_id,version,name,institution,last_digits,responsible_member,visibility,space_permission,state,counterparty_id,actor)
 SELECT a.space_id,a.id,a.version,a.name,a.institution,a.last_digits,a.responsible_member,a.visibility,a.space_permission,a.state,a.counterparty_id,$1
@@ -243,6 +465,67 @@ type CaptureCatalogMergeConfigurationParams struct {
 func (q *Queries) CaptureCatalogMergeConfiguration(ctx context.Context, arg CaptureCatalogMergeConfigurationParams) error {
 	_, err := q.db.Exec(ctx, captureCatalogMergeConfiguration, arg.Actor, arg.SpaceID, arg.ID)
 	return err
+}
+
+const cashTotals = `-- name: CashTotals :many
+SELECT a.currency,a.scale,e.kind,sum(e.amount_minor)::text AS amount_minor
+FROM position_effects e JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(e.space_id,e.operation_id,e.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(e.space_id,e.operation_id,e.revision)
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+WHERE e.space_id=$1 AND NOT r.voided AND e.in_tracking AND a.kind IN ('cash','bank','savings','wallet')
+AND r.effective_date>=$2::date AND r.effective_date<$3::date
+AND ($4::text='' OR a.id=$4) AND ($5::text='' OR a.currency=$5)
+AND (a.responsible_member=$6 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$6))))
+GROUP BY a.currency,a.scale,e.kind ORDER BY a.currency,e.kind
+`
+
+type CashTotalsParams struct {
+	SpaceID   string
+	FromDate  pgtype.Date
+	ToDate    pgtype.Date
+	AccountID string
+	Currency  string
+	MemberID  string
+}
+
+type CashTotalsRow struct {
+	Currency    string
+	Scale       int32
+	Kind        string
+	AmountMinor string
+}
+
+func (q *Queries) CashTotals(ctx context.Context, arg CashTotalsParams) ([]CashTotalsRow, error) {
+	rows, err := q.db.Query(ctx, cashTotals,
+		arg.SpaceID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.AccountID,
+		arg.Currency,
+		arg.MemberID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CashTotalsRow{}
+	for rows.Next() {
+		var i CashTotalsRow
+		if err := rows.Scan(
+			&i.Currency,
+			&i.Scale,
+			&i.Kind,
+			&i.AmountMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const catalogActiveChildren = `-- name: CatalogActiveChildren :one
@@ -357,6 +640,51 @@ func (q *Queries) CatalogEntry(ctx context.Context, arg CatalogEntryParams) (Fin
 	return i, err
 }
 
+const catalogReferences = `-- name: CatalogReferences :many
+SELECT c.id, c.space_id, c.kind, c.name, c.direction, c.parent_id, c.icon, c.color, c.default_key, c.archived, c.merged_into, c.version, c.created_at FROM financial_catalog c WHERE c.space_id=$1
+AND (c.id=ANY($2::text[]) OR c.id IN
+ (SELECT original.merged_into FROM financial_catalog original WHERE original.space_id=$1 AND original.id=ANY($2::text[])))
+`
+
+type CatalogReferencesParams struct {
+	SpaceID string
+	Ids     []string
+}
+
+func (q *Queries) CatalogReferences(ctx context.Context, arg CatalogReferencesParams) ([]FinancialCatalog, error) {
+	rows, err := q.db.Query(ctx, catalogReferences, arg.SpaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FinancialCatalog{}
+	for rows.Next() {
+		var i FinancialCatalog
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpaceID,
+			&i.Kind,
+			&i.Name,
+			&i.Direction,
+			&i.ParentID,
+			&i.Icon,
+			&i.Color,
+			&i.DefaultKey,
+			&i.Archived,
+			&i.MergedInto,
+			&i.Version,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const clearAccountGrants = `-- name: ClearAccountGrants :exec
 DELETE FROM account_grants WHERE space_id=$1 AND account_id=$2
 `
@@ -369,6 +697,129 @@ type ClearAccountGrantsParams struct {
 func (q *Queries) ClearAccountGrants(ctx context.Context, arg ClearAccountGrantsParams) error {
 	_, err := q.db.Exec(ctx, clearAccountGrants, arg.SpaceID, arg.AccountID)
 	return err
+}
+
+const copyVoidedRefundLink = `-- name: CopyVoidedRefundLink :exec
+INSERT INTO operation_refunds(space_id,operation_id,revision,purchase_id,purchase_revision,purchase_minor)
+SELECT f.space_id,f.operation_id,f.revision+1,f.purchase_id,f.purchase_revision,f.purchase_minor
+FROM operation_refunds f WHERE f.space_id=$1 AND f.operation_id=$2 AND f.revision=$3
+`
+
+type CopyVoidedRefundLinkParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+func (q *Queries) CopyVoidedRefundLink(ctx context.Context, arg CopyVoidedRefundLinkParams) error {
+	_, err := q.db.Exec(ctx, copyVoidedRefundLink, arg.SpaceID, arg.OperationID, arg.Revision)
+	return err
+}
+
+const copyVoidedRevision = `-- name: CopyVoidedRevision :exec
+WITH revision AS (
+ INSERT INTO operation_revisions(space_id,operation_id,revision,effective_date,author,note,exceptional,merchant_id,counterparty_id,original_minor,original_currency,change_kind,reason,voided)
+ SELECT r.space_id,r.operation_id,r.revision+1,r.effective_date,$1,r.note,r.exceptional,r.merchant_id,r.counterparty_id,r.original_minor,r.original_currency,'void',$2,true
+ FROM operation_revisions r WHERE r.space_id=$3 AND r.operation_id=$4 AND r.revision=$5
+ RETURNING space_id,operation_id,revision
+), effects AS (
+ INSERT INTO position_effects(space_id,operation_id,revision,ordinal,account_id,kind,amount_minor,in_tracking)
+ SELECT e.space_id,e.operation_id,n.revision,e.ordinal,e.account_id,e.kind,e.amount_minor,e.in_tracking
+ FROM position_effects e JOIN revision n ON (n.space_id,n.operation_id,n.revision-1)=(e.space_id,e.operation_id,e.revision)
+), components AS (
+ INSERT INTO economic_components(space_id,operation_id,revision,ordinal,effect_ordinal,direction,amount_minor,category_id,exchange_reference_id)
+ SELECT c.space_id,c.operation_id,n.revision,c.ordinal,c.effect_ordinal,c.direction,c.amount_minor,c.category_id,c.exchange_reference_id
+ FROM economic_components c JOIN revision n ON (n.space_id,n.operation_id,n.revision-1)=(c.space_id,c.operation_id,c.revision)
+)
+INSERT INTO operation_tags(space_id,operation_id,revision,tag_id)
+SELECT t.space_id,t.operation_id,n.revision,t.tag_id
+FROM operation_tags t JOIN revision n ON (n.space_id,n.operation_id,n.revision-1)=(t.space_id,t.operation_id,t.revision)
+`
+
+type CopyVoidedRevisionParams struct {
+	Author      string
+	Reason      string
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+func (q *Queries) CopyVoidedRevision(ctx context.Context, arg CopyVoidedRevisionParams) error {
+	_, err := q.db.Exec(ctx, copyVoidedRevision,
+		arg.Author,
+		arg.Reason,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+	)
+	return err
+}
+
+const economicTotals = `-- name: EconomicTotals :many
+SELECT a.currency,a.scale,c.direction,sum(c.amount_minor)::text AS amount_minor
+FROM economic_components c
+JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(c.space_id,c.operation_id,c.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(c.space_id,c.operation_id,c.revision)
+JOIN position_effects e ON (e.space_id,e.operation_id,e.revision,e.ordinal)=(c.space_id,c.operation_id,c.revision,c.effect_ordinal)
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+LEFT JOIN financial_catalog k ON (k.space_id,k.id)=(c.space_id,c.category_id)
+WHERE c.space_id=$1 AND NOT r.voided AND e.in_tracking
+AND r.effective_date>=$2::date AND r.effective_date<$3::date
+AND ($4::text='' OR a.id=$4) AND ($5::text='' OR a.currency=$5)
+AND ($6::text='' OR COALESCE(k.merged_into,k.id)=(SELECT COALESCE(z.merged_into,z.id) FROM financial_catalog z WHERE z.space_id=c.space_id AND z.id=$6))
+AND (a.responsible_member=$7 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$7))))
+GROUP BY a.currency,a.scale,c.direction ORDER BY a.currency,c.direction
+`
+
+type EconomicTotalsParams struct {
+	SpaceID    string
+	FromDate   pgtype.Date
+	ToDate     pgtype.Date
+	AccountID  string
+	Currency   string
+	CategoryID string
+	MemberID   string
+}
+
+type EconomicTotalsRow struct {
+	Currency    string
+	Scale       int32
+	Direction   string
+	AmountMinor string
+}
+
+func (q *Queries) EconomicTotals(ctx context.Context, arg EconomicTotalsParams) ([]EconomicTotalsRow, error) {
+	rows, err := q.db.Query(ctx, economicTotals,
+		arg.SpaceID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.AccountID,
+		arg.Currency,
+		arg.CategoryID,
+		arg.MemberID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EconomicTotalsRow{}
+	for rows.Next() {
+		var i EconomicTotalsRow
+		if err := rows.Scan(
+			&i.Currency,
+			&i.Scale,
+			&i.Direction,
+			&i.AmountMinor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const editAccount = `-- name: EditAccount :execrows
@@ -575,6 +1026,23 @@ func (q *Queries) HasOtherMembers(ctx context.Context, arg HasOtherMembersParams
 	return exists, err
 }
 
+const hasRefundLink = `-- name: HasRefundLink :one
+SELECT EXISTS(SELECT 1 FROM operation_refunds WHERE space_id=$1 AND operation_id=$2 AND revision=$3)
+`
+
+type HasRefundLinkParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+func (q *Queries) HasRefundLink(ctx context.Context, arg HasRefundLinkParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasRefundLink, arg.SpaceID, arg.OperationID, arg.Revision)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertAccount = `-- name: InsertAccount :exec
 INSERT INTO financial_accounts(id,space_id,name,kind,currency,scale,responsible_member,visibility,space_permission,institution,last_digits,tracking_date,opening_minor,balance_minor,quality,counterparty_id)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13,$14,$15)
@@ -651,6 +1119,66 @@ func (q *Queries) InsertCatalog(ctx context.Context, arg InsertCatalogParams) er
 	return err
 }
 
+const insertConsistencyCheck = `-- name: InsertConsistencyCheck :exec
+INSERT INTO balance_consistency_checks(id,space_id,account_id,projected_minor,reconstructed_minor,discrepancy,author)
+VALUES($1,$2,$3,$4,NULLIF($7::text,'')::numeric,$5,$6)
+`
+
+type InsertConsistencyCheckParams struct {
+	ID             string
+	SpaceID        string
+	AccountID      string
+	ProjectedMinor pgtype.Int8
+	Discrepancy    bool
+	Author         string
+	Reconstructed  string
+}
+
+func (q *Queries) InsertConsistencyCheck(ctx context.Context, arg InsertConsistencyCheckParams) error {
+	_, err := q.db.Exec(ctx, insertConsistencyCheck,
+		arg.ID,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.ProjectedMinor,
+		arg.Discrepancy,
+		arg.Author,
+		arg.Reconstructed,
+	)
+	return err
+}
+
+const insertEconomicComponent = `-- name: InsertEconomicComponent :exec
+INSERT INTO economic_components(space_id,operation_id,revision,ordinal,effect_ordinal,direction,amount_minor,category_id,exchange_reference_id)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+`
+
+type InsertEconomicComponentParams struct {
+	SpaceID             string
+	OperationID         string
+	Revision            int64
+	Ordinal             int32
+	EffectOrdinal       int32
+	Direction           string
+	AmountMinor         int64
+	CategoryID          pgtype.Text
+	ExchangeReferenceID pgtype.Text
+}
+
+func (q *Queries) InsertEconomicComponent(ctx context.Context, arg InsertEconomicComponentParams) error {
+	_, err := q.db.Exec(ctx, insertEconomicComponent,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.Ordinal,
+		arg.EffectOrdinal,
+		arg.Direction,
+		arg.AmountMinor,
+		arg.CategoryID,
+		arg.ExchangeReferenceID,
+	)
+	return err
+}
+
 const insertExchangeReference = `-- name: InsertExchangeReference :exec
 INSERT INTO exchange_references(id,space_id,from_currency,to_currency,rate,effective_date,context,source,precision_digits,replaces,author)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
@@ -687,6 +1215,216 @@ func (q *Queries) InsertExchangeReference(ctx context.Context, arg InsertExchang
 	return err
 }
 
+const insertOperation = `-- name: InsertOperation :exec
+INSERT INTO financial_operations(id,space_id,kind,author,origin) VALUES ($1,$2,$3,$4,'manual')
+`
+
+type InsertOperationParams struct {
+	ID      string
+	SpaceID string
+	Kind    string
+	Author  string
+}
+
+func (q *Queries) InsertOperation(ctx context.Context, arg InsertOperationParams) error {
+	_, err := q.db.Exec(ctx, insertOperation,
+		arg.ID,
+		arg.SpaceID,
+		arg.Kind,
+		arg.Author,
+	)
+	return err
+}
+
+const insertOperationRevision = `-- name: InsertOperationRevision :exec
+INSERT INTO operation_revisions(space_id,operation_id,revision,effective_date,author,note,exceptional,merchant_id,counterparty_id,original_minor,original_currency,change_kind,reason,voided)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+`
+
+type InsertOperationRevisionParams struct {
+	SpaceID          string
+	OperationID      string
+	Revision         int64
+	EffectiveDate    pgtype.Date
+	Author           string
+	Note             string
+	Exceptional      bool
+	MerchantID       pgtype.Text
+	CounterpartyID   pgtype.Text
+	OriginalMinor    pgtype.Int8
+	OriginalCurrency pgtype.Text
+	ChangeKind       string
+	Reason           string
+	Voided           bool
+}
+
+func (q *Queries) InsertOperationRevision(ctx context.Context, arg InsertOperationRevisionParams) error {
+	_, err := q.db.Exec(ctx, insertOperationRevision,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.EffectiveDate,
+		arg.Author,
+		arg.Note,
+		arg.Exceptional,
+		arg.MerchantID,
+		arg.CounterpartyID,
+		arg.OriginalMinor,
+		arg.OriginalCurrency,
+		arg.ChangeKind,
+		arg.Reason,
+		arg.Voided,
+	)
+	return err
+}
+
+const insertOperationTags = `-- name: InsertOperationTags :exec
+INSERT INTO operation_tags(space_id,operation_id,revision,tag_id)
+SELECT $1::text,$2::text,$3::bigint,unnest($4::text[])
+`
+
+type InsertOperationTagsParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+	TagIds      []string
+}
+
+func (q *Queries) InsertOperationTags(ctx context.Context, arg InsertOperationTagsParams) error {
+	_, err := q.db.Exec(ctx, insertOperationTags,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.TagIds,
+	)
+	return err
+}
+
+const insertPositionEffect = `-- name: InsertPositionEffect :exec
+INSERT INTO position_effects(space_id,operation_id,revision,ordinal,account_id,kind,amount_minor,in_tracking)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+`
+
+type InsertPositionEffectParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+	Ordinal     int32
+	AccountID   string
+	Kind        string
+	AmountMinor int64
+	InTracking  bool
+}
+
+func (q *Queries) InsertPositionEffect(ctx context.Context, arg InsertPositionEffectParams) error {
+	_, err := q.db.Exec(ctx, insertPositionEffect,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.Ordinal,
+		arg.AccountID,
+		arg.Kind,
+		arg.AmountMinor,
+		arg.InTracking,
+	)
+	return err
+}
+
+const insertReconciliation = `-- name: InsertReconciliation :exec
+INSERT INTO account_reconciliations(id,space_id,account_id,effective_date,calculated_minor,observed_minor,difference_minor,adjustment_id,author,reason)
+VALUES($1,$2,$3,$4,$5,$6,NULLIF($10::text,'')::numeric,$7,$8,$9)
+`
+
+type InsertReconciliationParams struct {
+	ID              string
+	SpaceID         string
+	AccountID       string
+	EffectiveDate   pgtype.Date
+	CalculatedMinor pgtype.Int8
+	ObservedMinor   int64
+	AdjustmentID    pgtype.Text
+	Author          string
+	Reason          string
+	Difference      string
+}
+
+func (q *Queries) InsertReconciliation(ctx context.Context, arg InsertReconciliationParams) error {
+	_, err := q.db.Exec(ctx, insertReconciliation,
+		arg.ID,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.EffectiveDate,
+		arg.CalculatedMinor,
+		arg.ObservedMinor,
+		arg.AdjustmentID,
+		arg.Author,
+		arg.Reason,
+		arg.Difference,
+	)
+	return err
+}
+
+const insertRefundLink = `-- name: InsertRefundLink :exec
+INSERT INTO operation_refunds(space_id,operation_id,revision,purchase_id,purchase_revision,purchase_minor)
+VALUES($1,$2,$3,$4,$5,$6)
+`
+
+type InsertRefundLinkParams struct {
+	SpaceID          string
+	OperationID      string
+	Revision         int64
+	PurchaseID       string
+	PurchaseRevision int64
+	PurchaseMinor    int64
+}
+
+func (q *Queries) InsertRefundLink(ctx context.Context, arg InsertRefundLinkParams) error {
+	_, err := q.db.Exec(ctx, insertRefundLink,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.PurchaseID,
+		arg.PurchaseRevision,
+		arg.PurchaseMinor,
+	)
+	return err
+}
+
+const markAffectedReconciliations = `-- name: MarkAffectedReconciliations :exec
+INSERT INTO reconciliation_reviews(space_id,reconciliation_id,operation_id,revision)
+SELECT r.space_id,r.id,$1::text,$2::bigint
+FROM account_reconciliations r WHERE r.space_id=$3
+AND r.account_id IN (SELECT changed.account_id FROM position_effects changed
+ WHERE changed.space_id=r.space_id AND changed.operation_id=$1
+ AND changed.revision IN ($4::bigint,$2::bigint))
+AND COALESCE((SELECT sum(e.amount_minor) FROM position_effects e JOIN operation_revisions v
+ ON (v.space_id,v.operation_id,v.revision)=(e.space_id,e.operation_id,e.revision)
+ WHERE e.space_id=r.space_id AND e.account_id=r.account_id AND e.operation_id=$1
+ AND e.revision=$4::bigint AND e.in_tracking AND NOT v.voided AND v.effective_date<=r.effective_date),0)
+<>COALESCE((SELECT sum(e.amount_minor) FROM position_effects e JOIN operation_revisions v
+ ON (v.space_id,v.operation_id,v.revision)=(e.space_id,e.operation_id,e.revision)
+ WHERE e.space_id=r.space_id AND e.account_id=r.account_id AND e.operation_id=$1
+ AND e.revision=$2::bigint AND e.in_tracking AND NOT v.voided AND v.effective_date<=r.effective_date),0)
+ON CONFLICT DO NOTHING
+`
+
+type MarkAffectedReconciliationsParams struct {
+	OperationID string
+	NewRevision int64
+	SpaceID     string
+	OldRevision int64
+}
+
+func (q *Queries) MarkAffectedReconciliations(ctx context.Context, arg MarkAffectedReconciliationsParams) error {
+	_, err := q.db.Exec(ctx, markAffectedReconciliations,
+		arg.OperationID,
+		arg.NewRevision,
+		arg.SpaceID,
+		arg.OldRevision,
+	)
+	return err
+}
+
 const mergeCatalog = `-- name: MergeCatalog :execrows
 UPDATE financial_catalog SET merged_into=$4,archived=true,version=version+1
 WHERE space_id=$1 AND id=$2 AND version=$3 AND merged_into IS NULL
@@ -712,6 +1450,327 @@ func (q *Queries) MergeCatalog(ctx context.Context, arg MergeCatalogParams) (int
 	return result.RowsAffected(), nil
 }
 
+const operation = `-- name: Operation :one
+SELECT o.id, o.space_id, o.kind, o.author, o.origin, o.current_revision, o.created_at,r.space_id, r.operation_id, r.revision, r.effective_date, r.author, r.recorded_at, r.note, r.exceptional, r.merchant_id, r.counterparty_id, r.original_minor, r.original_currency, r.change_kind, r.reason, r.voided
+FROM financial_operations o JOIN operation_revisions r
+ ON (r.space_id,r.operation_id)=(o.space_id,o.id)
+ AND r.revision=CASE WHEN $1::bigint=0 THEN o.current_revision ELSE $1 END
+WHERE o.space_id=$2 AND o.id=$3
+AND NOT EXISTS(SELECT 1 FROM position_effects e JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+ WHERE (e.space_id,e.operation_id,e.revision)=(r.space_id,r.operation_id,r.revision)
+ AND NOT (a.responsible_member=$4 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$4)))))
+`
+
+type OperationParams struct {
+	RequestedRevision int64
+	SpaceID           string
+	ID                string
+	MemberID          string
+}
+
+type OperationRow struct {
+	FinancialOperation FinancialOperation
+	OperationRevision  OperationRevision
+}
+
+func (q *Queries) Operation(ctx context.Context, arg OperationParams) (OperationRow, error) {
+	row := q.db.QueryRow(ctx, operation,
+		arg.RequestedRevision,
+		arg.SpaceID,
+		arg.ID,
+		arg.MemberID,
+	)
+	var i OperationRow
+	err := row.Scan(
+		&i.FinancialOperation.ID,
+		&i.FinancialOperation.SpaceID,
+		&i.FinancialOperation.Kind,
+		&i.FinancialOperation.Author,
+		&i.FinancialOperation.Origin,
+		&i.FinancialOperation.CurrentRevision,
+		&i.FinancialOperation.CreatedAt,
+		&i.OperationRevision.SpaceID,
+		&i.OperationRevision.OperationID,
+		&i.OperationRevision.Revision,
+		&i.OperationRevision.EffectiveDate,
+		&i.OperationRevision.Author,
+		&i.OperationRevision.RecordedAt,
+		&i.OperationRevision.Note,
+		&i.OperationRevision.Exceptional,
+		&i.OperationRevision.MerchantID,
+		&i.OperationRevision.CounterpartyID,
+		&i.OperationRevision.OriginalMinor,
+		&i.OperationRevision.OriginalCurrency,
+		&i.OperationRevision.ChangeKind,
+		&i.OperationRevision.Reason,
+		&i.OperationRevision.Voided,
+	)
+	return i, err
+}
+
+const operationComponents = `-- name: OperationComponents :many
+SELECT c.space_id, c.operation_id, c.revision, c.ordinal, c.effect_ordinal, c.direction, c.amount_minor, c.category_id, c.exchange_reference_id,COALESCE(k.merged_into,k.id,'')::text AS canonical_category_id
+FROM economic_components c LEFT JOIN financial_catalog k ON (k.space_id,k.id)=(c.space_id,c.category_id)
+WHERE c.space_id=$1 AND c.operation_id=$2 AND c.revision=$3 ORDER BY c.ordinal
+`
+
+type OperationComponentsParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+type OperationComponentsRow struct {
+	SpaceID             string
+	OperationID         string
+	Revision            int64
+	Ordinal             int32
+	EffectOrdinal       int32
+	Direction           string
+	AmountMinor         int64
+	CategoryID          pgtype.Text
+	ExchangeReferenceID pgtype.Text
+	CanonicalCategoryID string
+}
+
+func (q *Queries) OperationComponents(ctx context.Context, arg OperationComponentsParams) ([]OperationComponentsRow, error) {
+	rows, err := q.db.Query(ctx, operationComponents, arg.SpaceID, arg.OperationID, arg.Revision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OperationComponentsRow{}
+	for rows.Next() {
+		var i OperationComponentsRow
+		if err := rows.Scan(
+			&i.SpaceID,
+			&i.OperationID,
+			&i.Revision,
+			&i.Ordinal,
+			&i.EffectOrdinal,
+			&i.Direction,
+			&i.AmountMinor,
+			&i.CategoryID,
+			&i.ExchangeReferenceID,
+			&i.CanonicalCategoryID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const operationEffects = `-- name: OperationEffects :many
+SELECT e.space_id, e.operation_id, e.revision, e.ordinal, e.account_id, e.kind, e.amount_minor, e.in_tracking,a.currency,a.scale FROM position_effects e
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+WHERE e.space_id=$1 AND e.operation_id=$2 AND e.revision=$3 ORDER BY e.ordinal
+`
+
+type OperationEffectsParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+type OperationEffectsRow struct {
+	PositionEffect PositionEffect
+	Currency       string
+	Scale          int32
+}
+
+func (q *Queries) OperationEffects(ctx context.Context, arg OperationEffectsParams) ([]OperationEffectsRow, error) {
+	rows, err := q.db.Query(ctx, operationEffects, arg.SpaceID, arg.OperationID, arg.Revision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OperationEffectsRow{}
+	for rows.Next() {
+		var i OperationEffectsRow
+		if err := rows.Scan(
+			&i.PositionEffect.SpaceID,
+			&i.PositionEffect.OperationID,
+			&i.PositionEffect.Revision,
+			&i.PositionEffect.Ordinal,
+			&i.PositionEffect.AccountID,
+			&i.PositionEffect.Kind,
+			&i.PositionEffect.AmountMinor,
+			&i.PositionEffect.InTracking,
+			&i.Currency,
+			&i.Scale,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const operationRevisions = `-- name: OperationRevisions :many
+SELECT r.space_id, r.operation_id, r.revision, r.effective_date, r.author, r.recorded_at, r.note, r.exceptional, r.merchant_id, r.counterparty_id, r.original_minor, r.original_currency, r.change_kind, r.reason, r.voided FROM operation_revisions r
+WHERE r.space_id=$1 AND r.operation_id=$2 AND r.revision>$3::bigint
+AND NOT EXISTS(SELECT 1 FROM position_effects e JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+ WHERE (e.space_id,e.operation_id,e.revision)=(r.space_id,r.operation_id,r.revision)
+ AND NOT (a.responsible_member=$4 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$4)))))
+ORDER BY r.revision LIMIT $5
+`
+
+type OperationRevisionsParams struct {
+	SpaceID     string
+	OperationID string
+	Cursor      int64
+	MemberID    string
+	PageSize    int32
+}
+
+func (q *Queries) OperationRevisions(ctx context.Context, arg OperationRevisionsParams) ([]OperationRevision, error) {
+	rows, err := q.db.Query(ctx, operationRevisions,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Cursor,
+		arg.MemberID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OperationRevision{}
+	for rows.Next() {
+		var i OperationRevision
+		if err := rows.Scan(
+			&i.SpaceID,
+			&i.OperationID,
+			&i.Revision,
+			&i.EffectiveDate,
+			&i.Author,
+			&i.RecordedAt,
+			&i.Note,
+			&i.Exceptional,
+			&i.MerchantID,
+			&i.CounterpartyID,
+			&i.OriginalMinor,
+			&i.OriginalCurrency,
+			&i.ChangeKind,
+			&i.Reason,
+			&i.Voided,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const operationTags = `-- name: OperationTags :many
+SELECT t.tag_id,COALESCE(k.merged_into,k.id)::text AS canonical_tag_id FROM operation_tags t
+JOIN financial_catalog k ON (k.space_id,k.id)=(t.space_id,t.tag_id)
+WHERE t.space_id=$1 AND t.operation_id=$2 AND t.revision=$3 ORDER BY t.tag_id
+`
+
+type OperationTagsParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+}
+
+type OperationTagsRow struct {
+	TagID          string
+	CanonicalTagID string
+}
+
+func (q *Queries) OperationTags(ctx context.Context, arg OperationTagsParams) ([]OperationTagsRow, error) {
+	rows, err := q.db.Query(ctx, operationTags, arg.SpaceID, arg.OperationID, arg.Revision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OperationTagsRow{}
+	for rows.Next() {
+		var i OperationTagsRow
+		if err := rows.Scan(&i.TagID, &i.CanonicalTagID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const positionTotals = `-- name: PositionTotals :many
+SELECT CASE WHEN a.kind IN ('cash','bank','savings','wallet') THEN 'liquid'
+WHEN a.kind IN ('credit_card','simple_debt','loan','financed_purchase') THEN 'obligation' ELSE 'receivable' END::text AS position,
+a.currency,a.scale,COALESCE(sum(a.balance_minor),0)::text AS known_minor,
+bool_and(a.quality='confirmed')::boolean AS confirmed,bool_and(a.balance_minor IS NOT NULL)::boolean AS complete
+FROM financial_accounts a WHERE a.space_id=$1
+AND ($2::text='' OR a.id=$2) AND ($3::text='' OR a.currency=$3)
+AND (a.responsible_member=$4 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$4))))
+GROUP BY 1,a.currency,a.scale ORDER BY 1,a.currency
+`
+
+type PositionTotalsParams struct {
+	SpaceID   string
+	AccountID string
+	Currency  string
+	MemberID  string
+}
+
+type PositionTotalsRow struct {
+	Position   string
+	Currency   string
+	Scale      int32
+	KnownMinor string
+	Confirmed  bool
+	Complete   bool
+}
+
+func (q *Queries) PositionTotals(ctx context.Context, arg PositionTotalsParams) ([]PositionTotalsRow, error) {
+	rows, err := q.db.Query(ctx, positionTotals,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.Currency,
+		arg.MemberID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PositionTotalsRow{}
+	for rows.Next() {
+		var i PositionTotalsRow
+		if err := rows.Scan(
+			&i.Position,
+			&i.Currency,
+			&i.Scale,
+			&i.KnownMinor,
+			&i.Confirmed,
+			&i.Complete,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const putAccountGrants = `-- name: PutAccountGrants :exec
 INSERT INTO account_grants(space_id,account_id,member_id,permission)
 SELECT $1::text,$2::text,
@@ -733,6 +1792,128 @@ func (q *Queries) PutAccountGrants(ctx context.Context, arg PutAccountGrantsPara
 		arg.Permissions,
 	)
 	return err
+}
+
+const recentOperationSelections = `-- name: RecentOperationSelections :many
+SELECT o.id,r.effective_date,r.recorded_at,e.account_id,
+CASE WHEN EXISTS(SELECT 1 FROM economic_components more WHERE (more.space_id,more.operation_id,more.revision)=(r.space_id,r.operation_id,r.revision) AND more.ordinal>0) THEN '' ELSE COALESCE(k.merged_into,k.id,'') END::text AS category_id,
+COALESCE(m.merged_into,m.id,'')::text AS merchant_id
+FROM financial_operations o JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(o.space_id,o.id,o.current_revision)
+JOIN position_effects e ON (e.space_id,e.operation_id,e.revision,e.ordinal)=(r.space_id,r.operation_id,r.revision,0)
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+JOIN economic_components c ON (c.space_id,c.operation_id,c.revision,c.ordinal)=(r.space_id,r.operation_id,r.revision,0)
+LEFT JOIN financial_catalog k ON (k.space_id,k.id)=(c.space_id,c.category_id)
+LEFT JOIN financial_catalog target ON (target.space_id,target.id)=(k.space_id,k.merged_into)
+LEFT JOIN financial_catalog m ON (m.space_id,m.id)=(r.space_id,r.merchant_id)
+WHERE o.space_id=$1 AND o.kind=$2 AND r.author=$3 AND NOT r.voided
+AND a.state='active' AND EXISTS(SELECT 1 FROM memberships rm WHERE rm.space_id=a.space_id AND rm.id=a.responsible_member AND rm.ended_at IS NULL AND rm.role<>'reader')
+AND ($4::text='' OR COALESCE(m.merged_into,m.id)=COALESCE((SELECT COALESCE(z.merged_into,z.id) FROM financial_catalog z WHERE z.space_id=r.space_id AND z.id=$4),''))
+AND (k.id IS NULL OR NOT COALESCE(target.archived,k.archived))
+AND (m.id IS NULL OR NOT COALESCE((SELECT z.archived FROM financial_catalog z WHERE (z.space_id,z.id)=(m.space_id,m.merged_into)),m.archived))
+AND (a.responsible_member=$5 OR a.visibility='space' AND a.space_permission='operate' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$5) AND g.permission='operate')))
+ORDER BY r.recorded_at DESC,o.id DESC LIMIT $6
+`
+
+type RecentOperationSelectionsParams struct {
+	SpaceID    string
+	Kind       string
+	Author     string
+	MerchantID string
+	MemberID   string
+	PageSize   int32
+}
+
+type RecentOperationSelectionsRow struct {
+	ID            string
+	EffectiveDate pgtype.Date
+	RecordedAt    pgtype.Timestamptz
+	AccountID     string
+	CategoryID    string
+	MerchantID    string
+}
+
+func (q *Queries) RecentOperationSelections(ctx context.Context, arg RecentOperationSelectionsParams) ([]RecentOperationSelectionsRow, error) {
+	rows, err := q.db.Query(ctx, recentOperationSelections,
+		arg.SpaceID,
+		arg.Kind,
+		arg.Author,
+		arg.MerchantID,
+		arg.MemberID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecentOperationSelectionsRow{}
+	for rows.Next() {
+		var i RecentOperationSelectionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EffectiveDate,
+			&i.RecordedAt,
+			&i.AccountID,
+			&i.CategoryID,
+			&i.MerchantID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const reconciledBalanceAffected = `-- name: ReconciledBalanceAffected :one
+SELECT EXISTS(SELECT 1 FROM account_reconciliations r WHERE r.space_id=$1 AND r.account_id=$2
+AND CASE WHEN $3::date<=r.effective_date THEN $4::text::numeric ELSE 0 END
+ <> CASE WHEN $5::date<=r.effective_date THEN $6::text::numeric ELSE 0 END)
+`
+
+type ReconciledBalanceAffectedParams struct {
+	SpaceID     string
+	AccountID   string
+	BeforeDate  pgtype.Date
+	BeforeMinor string
+	AfterDate   pgtype.Date
+	AfterMinor  string
+}
+
+func (q *Queries) ReconciledBalanceAffected(ctx context.Context, arg ReconciledBalanceAffectedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, reconciledBalanceAffected,
+		arg.SpaceID,
+		arg.AccountID,
+		arg.BeforeDate,
+		arg.BeforeMinor,
+		arg.AfterDate,
+		arg.AfterMinor,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const reconstructedBalance = `-- name: ReconstructedBalance :one
+SELECT COALESCE((a.opening_minor::numeric+COALESCE((SELECT sum(e.amount_minor) FROM position_effects e
+JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(e.space_id,e.operation_id,e.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(e.space_id,e.operation_id,e.revision)
+WHERE e.space_id=a.space_id AND e.account_id=a.id AND e.in_tracking AND NOT r.voided),0))::text,'')::text AS amount_minor
+FROM financial_accounts a WHERE a.space_id=$1 AND a.id=$2
+`
+
+type ReconstructedBalanceParams struct {
+	SpaceID string
+	ID      string
+}
+
+func (q *Queries) ReconstructedBalance(ctx context.Context, arg ReconstructedBalanceParams) (string, error) {
+	row := q.db.QueryRow(ctx, reconstructedBalance, arg.SpaceID, arg.ID)
+	var amount_minor string
+	err := row.Scan(&amount_minor)
+	return amount_minor, err
 }
 
 const recordCatalogMerge = `-- name: RecordCatalogMerge :exec
@@ -837,6 +2018,68 @@ func (q *Queries) RecoverableAccounts(ctx context.Context, arg RecoverableAccoun
 	return items, nil
 }
 
+const refundLink = `-- name: RefundLink :one
+SELECT f.space_id, f.operation_id, f.revision, f.purchase_id, f.purchase_revision, f.purchase_minor FROM operation_refunds f
+WHERE f.space_id=$1 AND f.operation_id=$2 AND f.revision=$3
+AND NOT EXISTS(SELECT 1 FROM position_effects e JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+ WHERE (e.space_id,e.operation_id,e.revision)=(f.space_id,f.purchase_id,f.purchase_revision)
+ AND NOT (a.responsible_member=$4 OR a.visibility='space' OR
+ (a.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(a.space_id,a.id,$4)))))
+`
+
+type RefundLinkParams struct {
+	SpaceID     string
+	OperationID string
+	Revision    int64
+	MemberID    string
+}
+
+func (q *Queries) RefundLink(ctx context.Context, arg RefundLinkParams) (OperationRefund, error) {
+	row := q.db.QueryRow(ctx, refundLink,
+		arg.SpaceID,
+		arg.OperationID,
+		arg.Revision,
+		arg.MemberID,
+	)
+	var i OperationRefund
+	err := row.Scan(
+		&i.SpaceID,
+		&i.OperationID,
+		&i.Revision,
+		&i.PurchaseID,
+		&i.PurchaseRevision,
+		&i.PurchaseMinor,
+	)
+	return i, err
+}
+
+const refundedPurchaseAmount = `-- name: RefundedPurchaseAmount :one
+SELECT COALESCE(sum(f.purchase_minor),0)::text AS amount_minor,COALESCE(min(r.effective_date),'infinity'::date)::date AS earliest_date
+FROM operation_refunds f
+JOIN financial_operations o ON (o.space_id,o.id,o.current_revision)=(f.space_id,f.operation_id,f.revision)
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(f.space_id,f.operation_id,f.revision)
+WHERE f.space_id=$1 AND f.purchase_id=$2
+AND f.operation_id<>$3::text AND NOT r.voided
+`
+
+type RefundedPurchaseAmountParams struct {
+	SpaceID    string
+	PurchaseID string
+	ExcludeID  string
+}
+
+type RefundedPurchaseAmountRow struct {
+	AmountMinor  string
+	EarliestDate pgtype.Date
+}
+
+func (q *Queries) RefundedPurchaseAmount(ctx context.Context, arg RefundedPurchaseAmountParams) (RefundedPurchaseAmountRow, error) {
+	row := q.db.QueryRow(ctx, refundedPurchaseAmount, arg.SpaceID, arg.PurchaseID, arg.ExcludeID)
+	var i RefundedPurchaseAmountRow
+	err := row.Scan(&i.AmountMinor, &i.EarliestDate)
+	return i, err
+}
+
 const reparentCategories = `-- name: ReparentCategories :exec
 UPDATE financial_catalog SET parent_id=$3,version=version+1 WHERE space_id=$1 AND parent_id=$2
 `
@@ -867,6 +2110,121 @@ func (q *Queries) RepointCatalogAliases(ctx context.Context, arg RepointCatalogA
 	return err
 }
 
+const searchOperations = `-- name: SearchOperations :many
+SELECT o.id,o.kind,r.revision,r.effective_date,r.note,r.exceptional,r.merchant_id,r.counterparty_id,
+e.amount_minor,a.currency
+FROM financial_operations o
+JOIN operation_revisions r ON (r.space_id,r.operation_id,r.revision)=(o.space_id,o.id,o.current_revision)
+JOIN position_effects e ON (e.space_id,e.operation_id,e.revision,e.ordinal)=(r.space_id,r.operation_id,r.revision,0)
+JOIN financial_accounts a ON (a.space_id,a.id)=(e.space_id,e.account_id)
+WHERE o.space_id=$1 AND NOT r.voided
+AND r.effective_date>=$2::date AND r.effective_date<$3::date
+AND (r.effective_date,o.id)>($4::date,$5::text)
+AND ($6::text='' OR o.kind=$6)
+AND ($7::text='' OR (SELECT COALESCE(k.merged_into,k.id) FROM financial_catalog k WHERE k.space_id=r.space_id AND k.id=r.merchant_id)=(SELECT COALESCE(k.merged_into,k.id) FROM financial_catalog k WHERE k.space_id=r.space_id AND k.id=$7))
+AND ($8::text='' OR (SELECT COALESCE(k.merged_into,k.id) FROM financial_catalog k WHERE k.space_id=r.space_id AND k.id=r.counterparty_id)=(SELECT COALESCE(k.merged_into,k.id) FROM financial_catalog k WHERE k.space_id=r.space_id AND k.id=$8))
+AND ($9::text='' OR EXISTS(SELECT 1 FROM operation_tags t JOIN financial_catalog k ON (k.space_id,k.id)=(t.space_id,t.tag_id)
+ WHERE (t.space_id,t.operation_id,t.revision)=(r.space_id,r.operation_id,r.revision) AND COALESCE(k.merged_into,k.id)=COALESCE((SELECT COALESCE(z.merged_into,z.id) FROM financial_catalog z WHERE z.space_id=r.space_id AND z.id=$9),'')))
+AND ($10::text='' OR EXISTS(SELECT 1 FROM economic_components c JOIN financial_catalog k ON (k.space_id,k.id)=(c.space_id,c.category_id)
+ WHERE (c.space_id,c.operation_id,c.revision)=(r.space_id,r.operation_id,r.revision) AND COALESCE(k.merged_into,k.id)=COALESCE((SELECT COALESCE(z.merged_into,z.id) FROM financial_catalog z WHERE z.space_id=r.space_id AND z.id=$10),'')))
+AND EXISTS(SELECT 1 FROM position_effects f JOIN financial_accounts b ON (b.space_id,b.id)=(f.space_id,f.account_id)
+ WHERE (f.space_id,f.operation_id,f.revision)=(r.space_id,r.operation_id,r.revision)
+ AND ($11::text='' OR f.account_id=$11)
+ AND ($12::text='' OR b.currency=$12)
+ AND abs(f.amount_minor::numeric)>=$13::text::numeric AND abs(f.amount_minor::numeric)<=$14::text::numeric)
+AND ($15::text='' OR strpos(lower(r.note),lower($15))>0 OR EXISTS(SELECT 1 FROM financial_catalog k
+ LEFT JOIN financial_catalog canonical ON (canonical.space_id,canonical.id)=(k.space_id,k.merged_into)
+ WHERE k.space_id=r.space_id AND k.id IN (r.merchant_id,r.counterparty_id)
+ AND (strpos(lower(k.name),lower($15))>0 OR strpos(lower(canonical.name),lower($15))>0)))
+AND NOT EXISTS(SELECT 1 FROM position_effects f JOIN financial_accounts b ON (b.space_id,b.id)=(f.space_id,f.account_id)
+ WHERE (f.space_id,f.operation_id,f.revision)=(r.space_id,r.operation_id,r.revision)
+ AND NOT (b.responsible_member=$16 OR b.visibility='space' OR
+ (b.visibility='selected' AND EXISTS(SELECT 1 FROM account_grants g WHERE (g.space_id,g.account_id,g.member_id)=(b.space_id,b.id,$16)))))
+ORDER BY r.effective_date,o.id LIMIT $17
+`
+
+type SearchOperationsParams struct {
+	SpaceID        string
+	FromDate       pgtype.Date
+	ToDate         pgtype.Date
+	CursorDate     pgtype.Date
+	CursorID       string
+	Kind           string
+	MerchantID     string
+	CounterpartyID string
+	TagID          string
+	CategoryID     string
+	AccountID      string
+	Currency       string
+	MinMinor       string
+	MaxMinor       string
+	Query          string
+	MemberID       string
+	PageSize       int32
+}
+
+type SearchOperationsRow struct {
+	ID             string
+	Kind           string
+	Revision       int64
+	EffectiveDate  pgtype.Date
+	Note           string
+	Exceptional    bool
+	MerchantID     pgtype.Text
+	CounterpartyID pgtype.Text
+	AmountMinor    int64
+	Currency       string
+}
+
+func (q *Queries) SearchOperations(ctx context.Context, arg SearchOperationsParams) ([]SearchOperationsRow, error) {
+	rows, err := q.db.Query(ctx, searchOperations,
+		arg.SpaceID,
+		arg.FromDate,
+		arg.ToDate,
+		arg.CursorDate,
+		arg.CursorID,
+		arg.Kind,
+		arg.MerchantID,
+		arg.CounterpartyID,
+		arg.TagID,
+		arg.CategoryID,
+		arg.AccountID,
+		arg.Currency,
+		arg.MinMinor,
+		arg.MaxMinor,
+		arg.Query,
+		arg.MemberID,
+		arg.PageSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchOperationsRow{}
+	for rows.Next() {
+		var i SearchOperationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Revision,
+			&i.EffectiveDate,
+			&i.Note,
+			&i.Exceptional,
+			&i.MerchantID,
+			&i.CounterpartyID,
+			&i.AmountMinor,
+			&i.Currency,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const seedCatalog = `-- name: SeedCatalog :exec
 INSERT INTO financial_catalog(id,space_id,kind,name,direction,icon,color,default_key)
 VALUES ($1,$2,'category',$3,$4,$5,$6,$7) ON CONFLICT(space_id,default_key) DO NOTHING
@@ -893,6 +2251,24 @@ func (q *Queries) SeedCatalog(ctx context.Context, arg SeedCatalogParams) error 
 		arg.DefaultKey,
 	)
 	return err
+}
+
+const setAccountProjection = `-- name: SetAccountProjection :execrows
+UPDATE financial_accounts SET balance_minor=$3 WHERE space_id=$1 AND id=$2
+`
+
+type SetAccountProjectionParams struct {
+	SpaceID      string
+	ID           string
+	BalanceMinor pgtype.Int8
+}
+
+func (q *Queries) SetAccountProjection(ctx context.Context, arg SetAccountProjectionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAccountProjection, arg.SpaceID, arg.ID, arg.BalanceMinor)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const shareAccount = `-- name: ShareAccount :execrows

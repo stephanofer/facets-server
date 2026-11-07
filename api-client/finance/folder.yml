@@ -12,11 +12,14 @@ request:
           if (response.status !== 200 || !bru.getVar("spaceId")) throw new Error("Select an accessible space first.");
         }
         if (bru.getVar("financeSpaceId") !== bru.getVar("spaceId")) {
-          for (const key of ["accountId", "accountVersion", "catalogEntryId", "catalogVersion", "mergeTargetId", "mergeTargetVersion", "exchangeReferenceId", "recoveryAccountId", "recoveryAccountVersion"]) bru.setVar(key, "");
+          for (const key of ["accountId", "accountVersion", "catalogEntryId", "catalogVersion", "mergeTargetId", "mergeTargetVersion", "exchangeReferenceId", "recoveryAccountId", "recoveryAccountVersion", "operationId", "operationActionKey", "operationVersion", "operationCorrectionKey", "operationVoidKey", "operationRevision", "operationRevisionCursor", "reconciliationId", "reconciliationActionKey", "consistencyCheckId", "consistencyActionKey"]) bru.setVar(key, "");
           bru.setVar("financeSpaceId", bru.getVar("spaceId"));
         }
         const name = req.getName();
-        if (["get-financial-account", "edit-financial-account", "get-account-sharing", "share-financial-account", "transfer-account-responsibility"].includes(name) && !bru.getVar("accountId")) throw new Error("Run create-financial-account, or select accountId from list-financial-accounts.");
+        if (["get-financial-account", "edit-financial-account", "get-account-sharing", "share-financial-account", "transfer-account-responsibility", "create-financial-operation", "list-account-operation-history", "preview-account-reconciliation", "reconcile-account", "list-account-reconciliations", "check-account-consistency", "list-account-consistency-checks"].includes(name) && !bru.getVar("accountId")) throw new Error("Run create-financial-account, or select accountId from list-financial-accounts.");
+        if (["get-financial-operation", "preview-operation-correction", "correct-financial-operation", "void-financial-operation", "list-operation-revisions", "get-operation-revision"].includes(name) && !bru.getVar("operationId")) throw new Error("Run create-financial-operation, or select operationId from the authorized account history.");
+        if (["preview-operation-correction", "correct-financial-operation", "void-financial-operation"].includes(name) && !bru.getVar("operationVersion")) throw new Error("Read get-financial-operation and review the current version first.");
+        if (name === "get-operation-revision" && !bru.getVar("operationRevision")) throw new Error("Explicitly select operationRevision from list-operation-revisions.");
         if (["edit-financial-account", "share-financial-account", "transfer-account-responsibility"].includes(name) && !bru.getVar("accountVersion")) {
           const response = await bru.runRequest("finance/get-financial-account");
           if (response.status !== 200) throw new Error("Cannot read current account version.");

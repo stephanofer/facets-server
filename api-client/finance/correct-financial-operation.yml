@@ -1,0 +1,27 @@
+info:
+  name: correct-financial-operation
+  type: http
+  seq: 34
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{operationCorrectionKey}}"
+  body:
+    type: json
+    data: |-
+      {"version":{{operationVersion}},"reason":"Correct synthetic expense","replacement":{"kind":"expense","date":"2026-11-01","applied":{"account_id":"{{accountId}}","amount_minor":"1500"},"parts":[],"fees":[],"exceptional":false,"tag_ids":[],"confirm":true}}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("operationCorrectionKey")) { bru.setVar("operationCorrectionKey", bru.interpolate("{{$randomUUID}}")); }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Replaces the complete operation, not one transfer leg. Preview and explicitly review the replacement first. Retain operationVersion, operationCorrectionKey and body unchanged for retries; refresh the version and clear the key only for a distinct correction. Fetch current detail separately after success. The server distinguishes descriptive from financial revisions and preserves prior effective dates and effects as evidence.

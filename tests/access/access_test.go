@@ -140,6 +140,10 @@ func setup(t *testing.T) *fixture {
  GRANT SELECT,INSERT,DELETE ON account_grants TO access_app;
  GRANT SELECT,INSERT ON catalog_merges,exchange_references TO access_app;
  GRANT SELECT,INSERT ON account_configuration_history,account_grant_history,catalog_configuration_history TO access_app;
+ GRANT SELECT,INSERT ON financial_operations,operation_revisions,position_effects,economic_components,operation_tags TO access_app;
+ GRANT SELECT,INSERT ON operation_refunds TO access_app;
+ GRANT SELECT,INSERT ON account_reconciliations,reconciliation_reviews,balance_consistency_checks TO access_app;
+ GRANT UPDATE(current_revision) ON financial_operations TO access_app;
  GRANT SELECT,INSERT ON technical_audit TO access_app;
  GRANT USAGE ON SEQUENCE technical_audit_id_seq TO access_app;
  GRANT SELECT ON goose_db_version TO access_app`)
@@ -232,7 +236,7 @@ func setup(t *testing.T) *fixture {
 
 func (f *fixture) reset(t *testing.T) {
 	t.Helper()
-	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE account_grant_history,account_configuration_history,catalog_configuration_history,account_grants,exchange_references,catalog_merges,financial_accounts,financial_catalog,access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
+	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE operation_refunds,reconciliation_reviews,account_reconciliations,balance_consistency_checks,operation_tags,economic_components,position_effects,operation_revisions,financial_operations,account_grant_history,account_configuration_history,catalog_configuration_history,account_grants,exchange_references,catalog_merges,financial_accounts,financial_catalog,access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
 	if err != nil {
 		t.Fatal(err)
 	}

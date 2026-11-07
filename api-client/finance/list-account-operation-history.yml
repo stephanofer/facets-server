@@ -1,0 +1,20 @@
+info:
+  name: list-account-operation-history
+  type: http
+  seq: 32
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/history?limit=50"
+  auth: inherit
+  params:
+    - name: limit
+      value: "50"
+      type: query
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: Stable operation-ID/effect-ordinal cursor. A transfer and its fee are distinct effects of the same operation, not separate facts. in_tracking=false identifies antecedents already included in the opening balance. Each entry contains only this account's effect, never restricted counter-end metadata.

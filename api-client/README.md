@@ -1,6 +1,6 @@
 # Facets API client
 
-Curated OpenCollection YAML collection: **68 requests**, one filename per
+Curated OpenCollection YAML collection: **84 requests**, one filename per
 `operationId` in [`docs/openapi.json`](../docs/openapi.json). Use a current Bruno
 Desktop with OpenCollection YAML support; CLI checks use **4.3.0**. Scripts use
 Safe Mode; no npm packages, filesystem access, or Developer Mode are needed by
@@ -78,11 +78,29 @@ does not pick up a changed `.env`, reload the collection before authenticating.
   revocation invalidate sessions. Scripts clear the affected token. New
   credentials are reused in memory; update `.env` before restarting Bruno.
 
-Every command requiring `Idempotency-Key` uses `{{$randomUUID}}`. Each click
+Except for financial operation creation/correction/voiding, reconciliation and consistency checks, commands requiring `Idempotency-Key` use `{{$randomUUID}}`. Each click
 is a **new action**, not a retry of an uncertain prior action. To test replay
 semantics, deliberately replace that header temporarily with the same fixed
 key and identical body; never regenerate the key for an actual retry. Do not
 commit temporary replay keys or secret-bearing edits.
+
+`finance/create-financial-operation` retains `operationActionKey` in memory for
+safe retries, including a lost response. Clear it explicitly to begin a distinct
+operation. Do not change the body under an existing action key. It captures
+`operationId` for detail; account history reveals only the selected account's
+effects. Corrections and voiding retain `operationCorrectionKey`/`operationVoidKey`
+and their original body/version for retries. Read `get-financial-operation` to
+select `operationVersion`, review `preview-operation-correction`, then explicitly
+confirm the replacement. Do not refresh the captured version for a retry of a
+committed command. Revision browsing uses `operationRevision` independently;
+select it explicitly from authorized revision summaries. The financial operation
+requests are deliberately outside the non-financial smoke.
+Reconciliation/check commands retain `reconciliationActionKey`/`consistencyActionKey`
+as well; clear them only for distinct actions. Review the historical calculation
+with `preview-account-reconciliation` before confirming it. Search, suggestions,
+reconciliation evidence, consistency incidences and original-currency summaries
+are available in the same folder. See [Financial operations](../docs/FINANCIAL_OPERATIONS.md)
+for contracts and acceptance status.
 
 ## MFA and staff
 
