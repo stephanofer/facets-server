@@ -82,7 +82,7 @@ Usa `./scripts/dev.ps1 <tarea>` en PowerShell. El script selecciona Go desde `en
 | `build` | Compila en `artifacts/`, inspecciona el binario y ejecuta su modo de versión. Para verificar el artefacto. |
 | `run` | Carga configuración local e inicia el servidor HTTP. Para probar la API localmente. |
 | `worker` | Carga configuración local e inicia el worker. Para procesar trabajos de la cola configurada. |
-| `validate` | Valida código: entorno, formato, script, pruebas, tidy, sqlc/OpenAPI, migraciones, integración, vet/lint, race, vulnerabilidades y build. No verifica la integridad de la caché; eso corresponde a `verify`. |
+| `validate` | Valida código: entorno, formato, script, pruebas, tidy, sqlc/OpenAPI, migraciones, integración, vet/lint, race, vulnerabilidades y build. |
 
 - Durante cambios Go: usa `format` y `check -Packages ./internal/<paquete>`; `test` también acepta `-Packages`. En `check`, el filtro solo limita las pruebas, no la revisión de formato.
 - Ejecuta `integration` para cambios de persistencia/transacciones y `race` para concurrencia en memoria; ninguno sustituye al otro. Integración usa bases temporales, no `.env` ni la base local.
