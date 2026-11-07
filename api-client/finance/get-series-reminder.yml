@@ -1,0 +1,18 @@
+info:
+  name: get-series-reminder
+  type: http
+  seq: 70
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/{{seriesId}}/reminder"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("seriesReminderVersion", res.body.version);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+docs: Read your personal default for future occurrence generation. Version zero means no preference. An ended membership's preference is not restored by rejoining.

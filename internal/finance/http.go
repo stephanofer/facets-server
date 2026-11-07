@@ -59,6 +59,10 @@ func RegisterHTTP(api huma.API, s *Service, log *slog.Logger) {
 	r := &routes{api: api, service: s, log: log}
 	r.organization()
 	r.operations()
+	r.dues()
+	r.series()
+	r.planningAccess()
+	r.reminders()
 	base := "/v1/spaces/{space_id}/accounts"
 	r.register("GET", base+"/proposal", "propose-account-visibility", "Propose visibility without sharing existing accounts", func(ctx context.Context, in *struct {
 		access.AuthorizationInput

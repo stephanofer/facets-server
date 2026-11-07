@@ -196,7 +196,7 @@ func TestFinancialOperationsPrivacyAndAtomicity(t *testing.T) {
 	if _, err := f.db.Pool.Exec(t.Context(), "REVOKE INSERT ON technical_audit FROM access_app"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := finance.New(f.service).CreateOperation(t.Context(), access.SpaceCommand{Authorization: "Bearer " + member.Token, SpaceID: owner.SpaceID, Key: "audit-rollback"}, v)
+	_, err := finance.New(f.service, f.store).CreateOperation(t.Context(), access.SpaceCommand{Authorization: "Bearer " + member.Token, SpaceID: owner.SpaceID, Key: "audit-rollback"}, v)
 	if err == nil {
 		t.Fatal("audit failure confirmed a financial operation")
 	}
@@ -219,7 +219,7 @@ func TestFinancialOperationsConcurrencyAndRange(t *testing.T) {
 	f := setup(t)
 	u := f.newUser(t, "operations-race@example.test")
 	id := f.financialAccount(t, u, u.SpaceID, "bank", "PEN", "0", "confirmed", "private")
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	v := operationInput("income", id, "100")
 	var wg sync.WaitGroup
 	results := make(chan string, 8)
@@ -387,7 +387,7 @@ func TestFinancialOperationLostResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := finance.New(restarted).CreateOperation(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "lost-operation"}, v)
+	id, err := finance.New(restarted, f.store).CreateOperation(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "lost-operation"}, v)
 	if err != nil || id == "" {
 		t.Fatal("lost response did not recover after service replacement", err)
 	}

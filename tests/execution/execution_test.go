@@ -115,6 +115,55 @@ func TestExecutionGuarantees(t *testing.T) {
 		}
 		return id
 	}
+	t.Run("scheduled batch admission and deduplication", func(t *testing.T) {
+		reset(t)
+		jobs := []execution.Job{
+			{Queue: "heavy", Kind: "batch-probe", DedupKey: "batch-immediate", MaxAttempts: 2},
+			{Queue: "heavy", Kind: "batch-probe", DedupKey: "batch-future", MaxAttempts: 2, AvailableAt: time.Now().UTC().Add(time.Hour)},
+		}
+		enqueue := func(values []execution.Job) error {
+			return db.Transaction(ctx, pgx.TxOptions{}, func(ctx context.Context, tx pgx.Tx) error { return store.EnqueueBatch(ctx, tx, values) })
+		}
+		var wg sync.WaitGroup
+		errs := make(chan error, 4)
+		for range 4 {
+			wg.Go(func() { errs <- enqueue(jobs) })
+		}
+		wg.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		var count int
+		if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM jobs").Scan(&count); err != nil || count != 2 {
+			t.Fatal("batch duplicated", count, err)
+		}
+		addJob(t, jobs[0]) // Single and bulk enqueue use identical fingerprints.
+		worker := execution.Worker{Store: store, Queue: "heavy", Timeout: time.Second, Lease: 5 * time.Second, Log: slog.New(slog.DiscardHandler), Handlers: map[string]execution.Handler{"batch-probe": {Check: func(context.Context, []byte) error { return nil }, Execute: func(context.Context, string, []byte) (string, error) { return "done", nil }}}}
+		if worked, err := worker.Once(ctx); err != nil || !worked {
+			t.Fatal(worked, err)
+		}
+		if worked, err := worker.Once(ctx); err != nil || worked {
+			t.Fatal("future job claimed early", worked, err)
+		}
+		if err := enqueue(jobs); err != nil {
+			t.Fatal("terminal batch replay", err)
+		}
+		changed := []execution.Job{jobs[0]}
+		changed[0].Payload = []byte("different")
+		if err := enqueue(changed); !errors.Is(err, execution.ErrConflict) {
+			t.Fatal("batch payload conflict", err)
+		}
+		bounded := execution.Store{DB: db, QueueLimit: 1}
+		err := db.Transaction(ctx, pgx.TxOptions{}, func(ctx context.Context, tx pgx.Tx) error {
+			return bounded.EnqueueBatch(ctx, tx, []execution.Job{{Queue: "heavy", Kind: "batch-probe", DedupKey: "no-capacity", MaxAttempts: 2}})
+		})
+		if !errors.Is(err, execution.ErrQueueFull) {
+			t.Fatal("batch capacity not enforced", err)
+		}
+	})
 	t.Run("concurrent action and lost response", func(t *testing.T) {
 		reset(t)
 		var wg sync.WaitGroup

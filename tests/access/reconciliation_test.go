@@ -107,7 +107,7 @@ func TestReconciliationConcurrencyPrivacyAndRollback(t *testing.T) {
 	if _, err := f.db.Pool.Exec(t.Context(), "REVOKE INSERT ON technical_audit FROM access_app"); err != nil {
 		t.Fatal(err)
 	}
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	if _, err := s.ReconcileAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "rollback"}, bank, v); err == nil {
 		t.Fatal("audit failure committed an adjustment")
 	}

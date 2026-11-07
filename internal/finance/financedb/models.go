@@ -15,6 +15,40 @@ type AccountGrant struct {
 	Permission string
 }
 
+type DueItem struct {
+	ID           string
+	SpaceID      string
+	AccountID    pgtype.Text
+	Direction    string
+	Name         string
+	DueDate      pgtype.Date
+	Certainty    string
+	AmountMinor  pgtype.Int8
+	MaximumMinor pgtype.Int8
+	State        string
+	Version      int64
+	Author       string
+	CreatedAt    pgtype.Timestamptz
+	Currency     string
+	Scale        int32
+	ResourceID   pgtype.Text
+}
+
+type DueReminder struct {
+	ID          string
+	SpaceID     string
+	DueID       string
+	MemberID    string
+	Version     int64
+	Enabled     bool
+	DueDate     pgtype.Date
+	DaysBefore  int32
+	Hour        int32
+	Minute      int32
+	Zone        string
+	ScheduledAt pgtype.Timestamptz
+}
+
 type ExchangeReference struct {
 	ID              string
 	SpaceID         string
@@ -106,6 +140,27 @@ type OperationRevision struct {
 	Voided           bool
 }
 
+type PaymentApplication struct {
+	ID             string
+	SpaceID        string
+	DueID          string
+	OperationID    string
+	SourceRevision int64
+	EffectOrdinal  int32
+	MovementMinor  int64
+	DueMinor       int64
+	Author         string
+	CreatedAt      pgtype.Timestamptz
+}
+
+type PlanningResource struct {
+	ID                string
+	SpaceID           string
+	ResponsibleMember string
+	Visibility        string
+	Version           int64
+}
+
 type PositionEffect struct {
 	SpaceID     string
 	OperationID string
@@ -115,4 +170,59 @@ type PositionEffect struct {
 	Kind        string
 	AmountMinor int64
 	InTracking  bool
+}
+
+type RecurringSeries struct {
+	ID             string
+	SpaceID        string
+	AccountID      pgtype.Text
+	Direction      string
+	CurrentVersion int64
+	Author         string
+	CreatedAt      pgtype.Timestamptz
+	Currency       string
+	Scale          int32
+	ResourceID     pgtype.Text
+}
+
+type RecurringSeriesVersion struct {
+	SpaceID             string
+	SeriesID            string
+	Version             int64
+	Name                string
+	Certainty           string
+	AmountMinor         pgtype.Int8
+	MaximumMinor        pgtype.Int8
+	StartDate           pgtype.Date
+	Frequency           string
+	IntervalCount       int32
+	FirstDay            int32
+	SecondDay           int32
+	EndDate             pgtype.Date
+	RepetitionCount     int32
+	EffectiveFrom       pgtype.Date
+	GeneratedUntil      pgtype.Date
+	State               string
+	Author              string
+	Reason              string
+	RecordedAt          pgtype.Timestamptz
+	CounterpartyID      pgtype.Text
+	SuggestedCategoryID pgtype.Text
+	SubscriptionPlan    pgtype.Text
+	TrialUntil          pgtype.Date
+	RenewalOn           pgtype.Date
+	CancelBy            pgtype.Date
+	CancellationOn      pgtype.Date
+}
+
+type SeriesReminderPreference struct {
+	SpaceID    string
+	SeriesID   string
+	MemberID   string
+	Version    int64
+	Enabled    bool
+	DaysBefore int32
+	Hour       int32
+	Minute     int32
+	Zone       string
 }

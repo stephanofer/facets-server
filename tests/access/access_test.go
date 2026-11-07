@@ -142,6 +142,16 @@ func setup(t *testing.T) *fixture {
  GRANT SELECT,INSERT ON account_configuration_history,account_grant_history,catalog_configuration_history TO access_app;
  GRANT SELECT,INSERT ON financial_operations,operation_revisions,position_effects,economic_components,operation_tags TO access_app;
  GRANT SELECT,INSERT ON operation_refunds TO access_app;
+ GRANT SELECT,INSERT,UPDATE ON due_items TO access_app;
+ GRANT SELECT,INSERT ON due_item_revisions,payment_applications,payment_application_releases TO access_app;
+ GRANT SELECT,INSERT ON recurring_series,recurring_series_versions,recurring_occurrences TO access_app;
+ GRANT UPDATE(current_version) ON recurring_series TO access_app;
+  GRANT UPDATE(generated_until) ON recurring_series_versions TO access_app;
+  GRANT SELECT,INSERT,UPDATE ON planning_resources TO access_app;
+  GRANT SELECT,INSERT,DELETE ON planning_readers TO access_app;
+  GRANT SELECT,INSERT ON planning_access_history TO access_app;
+  GRANT SELECT,INSERT,UPDATE ON due_reminders,series_reminder_preferences TO access_app;
+  GRANT SELECT,INSERT ON reminder_configuration_history,reminder_deliveries,series_reminder_history TO access_app;
  GRANT SELECT,INSERT ON account_reconciliations,reconciliation_reviews,balance_consistency_checks TO access_app;
  GRANT UPDATE(current_revision) ON financial_operations TO access_app;
  GRANT SELECT,INSERT ON technical_audit TO access_app;
@@ -187,7 +197,7 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	access.RegisterHTTP(api.Huma, f.service, log)
-	finance.RegisterHTTP(api.Huma, finance.New(f.service), log)
+	finance.RegisterHTTP(api.Huma, finance.New(f.service, f.store), log)
 	f.server = httptest.NewServer(api.Handler)
 	t.Cleanup(f.server.Close)
 	ses := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -230,13 +240,13 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	f.sender = sender
-	f.worker = execution.Worker{Store: f.store, Queue: "notifications", Concurrency: 2, Timeout: 2 * time.Second, Lease: 10 * time.Second, Poll: time.Second, Handlers: map[string]execution.Handler{"access.mail": f.service.MailHandler(sender)}, Log: log}
+	f.worker = execution.Worker{Store: f.store, Queue: "notifications", Concurrency: 2, Timeout: 2 * time.Second, Lease: 10 * time.Second, Poll: time.Second, Handlers: map[string]execution.Handler{"access.mail": f.service.MailHandler(sender), "planning.reminder": finance.New(f.service, f.store).ReminderHandler()}, Log: log}
 	return f
 }
 
 func (f *fixture) reset(t *testing.T) {
 	t.Helper()
-	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE operation_refunds,reconciliation_reviews,account_reconciliations,balance_consistency_checks,operation_tags,economic_components,position_effects,operation_revisions,financial_operations,account_grant_history,account_configuration_history,catalog_configuration_history,account_grants,exchange_references,catalog_merges,financial_accounts,financial_catalog,access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
+	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE reminder_deliveries,reminder_configuration_history,due_reminders,series_reminder_history,series_reminder_preferences,planning_access_history,planning_readers,planning_resources,recurring_occurrences,recurring_series_versions,recurring_series,payment_application_releases,payment_applications,due_item_revisions,due_items,operation_refunds,reconciliation_reviews,account_reconciliations,balance_consistency_checks,operation_tags,economic_components,position_effects,operation_revisions,financial_operations,account_grant_history,account_configuration_history,catalog_configuration_history,account_grants,exchange_references,catalog_merges,financial_accounts,financial_catalog,access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
 	if err != nil {
 		t.Fatal(err)
 	}

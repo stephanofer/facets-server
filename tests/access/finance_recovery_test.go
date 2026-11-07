@@ -34,7 +34,7 @@ func TestFinancialRecoveryAndAtomicity(t *testing.T) {
 				t.Error(err)
 			}
 		}()
-		_, err := finance.New(f.service).CreateAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "rollback"}, accountInput("private"))
+		_, err := finance.New(f.service, f.store).CreateAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "rollback"}, accountInput("private"))
 		if err == nil {
 			t.Fatal("unexpected success without durable audit")
 		}
@@ -85,7 +85,7 @@ func TestFinancialRecoveryAndAtomicity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		id, err := finance.New(restarted).CreateAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "lost-account"}, accountInput("private"))
+		id, err := finance.New(restarted, f.store).CreateAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "lost-account"}, accountInput("private"))
 		if err != nil || id == "" {
 			t.Fatal("cannot recover committed reference", err)
 		}
@@ -96,7 +96,7 @@ func TestFinancialRecoveryAndAtomicity(t *testing.T) {
 	t.Run("concurrent versioned edits have one winner", func(t *testing.T) {
 		f.reset(t)
 		u := f.newUser(t, "edit-race-finance@example.test")
-		s := finance.New(f.service)
+		s := finance.New(f.service, f.store)
 		id, err := s.CreateAccount(t.Context(), access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "create"}, accountInput("private"))
 		if err != nil {
 			t.Fatal(err)

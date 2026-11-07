@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"math"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -117,6 +118,7 @@ type Job struct {
 	Payload               []byte
 	MaxAttempts           int32
 	ExternalEffect        bool
+	AvailableAt           time.Time
 }
 
 // Enqueue must share the caller's transaction. A short database admission lock
@@ -137,7 +139,8 @@ func (s *Store) Enqueue(ctx context.Context, tx pgx.Tx, j Job) (string, error) {
 		Payload     []byte
 		Attempts    int32
 		External    bool
-	}{Queue: j.Queue, Kind: j.Kind, Payload: j.Payload, Attempts: j.MaxAttempts, External: j.ExternalEffect})
+		AvailableAt time.Time `json:",omitzero"`
+	}{Queue: j.Queue, Kind: j.Kind, Payload: j.Payload, Attempts: j.MaxAttempts, External: j.ExternalEffect, AvailableAt: j.AvailableAt})
 	if err != nil {
 		return "", err
 	}
@@ -166,6 +169,7 @@ func (s *Store) Enqueue(ctx context.Context, tx pgx.Tx, j Job) (string, error) {
 	err = q.InsertJob(ctx, executiondb.InsertJobParams{
 		ID: id, Queue: j.Queue, Kind: j.Kind, DedupKey: j.DedupKey, Fingerprint: fp[:],
 		Payload: j.Payload, MaxAttempts: j.MaxAttempts, ExternalEffect: j.ExternalEffect,
+		AvailableAt: jobInstant(j.AvailableAt),
 	})
 	// Different queue admission locks can race over a globally scoped key.
 	// Queue is part of the fingerprint, so that collision is always a conflict.

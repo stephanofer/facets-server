@@ -1,6 +1,6 @@
 # Facets API client
 
-Curated OpenCollection YAML collection: **84 requests**, one filename per
+Curated OpenCollection YAML collection: **109 requests**, one filename per
 `operationId` in [`docs/openapi.json`](../docs/openapi.json). Use a current Bruno
 Desktop with OpenCollection YAML support; CLI checks use **4.3.0**. Scripts use
 Safe Mode; no npm packages, filesystem access, or Developer Mode are needed by
@@ -78,7 +78,7 @@ does not pick up a changed `.env`, reload the collection before authenticating.
   revocation invalidate sessions. Scripts clear the affected token. New
   credentials are reused in memory; update `.env` before restarting Bruno.
 
-Except for financial operation creation/correction/voiding, reconciliation and consistency checks, commands requiring `Idempotency-Key` use `{{$randomUUID}}`. Each click
+Except for financial operation creation/correction/voiding, reconciliation, consistency checks, dues, series and payment applications, commands requiring `Idempotency-Key` use `{{$randomUUID}}`. Each click
 is a **new action**, not a retry of an uncertain prior action. To test replay
 semantics, deliberately replace that header temporarily with the same fixed
 key and identical body; never regenerate the key for an actual retry. Do not
@@ -101,6 +101,44 @@ with `preview-account-reconciliation` before confirming it. Search, suggestions,
 reconciliation evidence, consistency incidences and original-currency summaries
 are available in the same folder. See [Financial operations](../docs/FINANCIAL_OPERATIONS.md)
 for contracts and acceptance status.
+
+The current block-6 slice adds standalone dues and application of movements.
+Create a due, review `get-due-item` and `get-financial-operation`, then run
+`get-movement-application-capacity` and `apply-payment`. Capacity is advisory;
+the command rechecks it, and restricted target allocations are not disclosed.
+Alternatively, use `create-payment-operation` to record the real movement and
+apply it atomically; do not create the movement separately first. Its
+`paymentOperationKey` is retained for retries, including lost responses.
+Due/action selections are cleared on login or space change.
+Keys are retained for retry; reset a key explicitly only for a distinct action.
+Do not refresh a version while retrying the original committed command. See
+[Planning](../docs/PLANNING.md) for the supported scope, permissions and remaining
+block-6 work. These mutating requests are not part of the read-only smoke.
+
+For account-linked series, use `preview-recurring-series`, review the intended
+rule, then `create-recurring-series` and `get-recurring-series`. The preview
+example demonstrates coincident nominal days; the creation example is monthly,
+so adjust and preview the actual rule you want before confirming. Use
+`generate-recurring-occurrences` to extend a bounded horizon and `list-due-items`
+to consult generated dues and their source identity. Generation never records
+money. `edit-recurring-series` versions future conditions or pauses/resumes/ends/
+cancels tracking, preserving existing dues. Read the current generation boundary
+before a new edit; do not refresh versions or keys for retries. Series commands
+retain `seriesCreateKey`, `seriesGenerateKey` and `seriesEditKey`; reset each only
+for a distinct action. Select a series explicitly from its authorized list.
+For accountless dues/series, omit `account_id` and supply `currency`; creation is
+private. Detail returns `planningResourceId` for explicit consultation sharing,
+responsibility transfer or same-identity recovery after rejoining. Review
+`get-planning-access` before changing its versioned access configuration.
+Personal subscriptions are optional series conditions, separate from space
+contracting; detail includes comparative equivalents and authorized charge evidence.
+
+For personal reminders, review `get-due-reminder` (version zero when unconfigured)
+and the due version, then `configure-due-reminder`. Snooze requires an explicitly
+chosen future `reminderSnoozeUntil`; it never changes the due date. Series reminder
+defaults affect future generation only. The notifications worker persists delivery
+to the authorized agenda (`reminder=delivered`), not a device push or read receipt.
+Preserve reminder action keys/body for retries; clear them only for distinct actions.
 
 ## MFA and staff
 

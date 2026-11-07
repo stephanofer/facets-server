@@ -133,7 +133,7 @@ func TestOperationCorrectionAtomicityAndConcurrency(t *testing.T) {
 	path := base + "/operations/" + id
 	v.Applied.AmountMinor, v.Received.AmountMinor, v.Fees[0].AmountMinor = "2000", "500", "20"
 	correction := finance.OperationCorrection{Version: 1, Reason: "Correct both principal legs and fee", Replacement: v}
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	command := access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "rollback"}
 	if _, err := f.db.Pool.Exec(t.Context(), "REVOKE INSERT ON technical_audit FROM access_app"); err != nil {
 		t.Fatal(err)
@@ -309,7 +309,7 @@ func TestOperationChangeLostResponse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s := finance.New(restarted)
+			s := finance.New(restarted, f.store)
 			command := access.SpaceCommand{Authorization: "Bearer " + u.Token, SpaceID: u.SpaceID, Key: "lost-change"}
 			var recovered string
 			if action == "void" {

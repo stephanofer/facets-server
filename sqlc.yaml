@@ -2,7 +2,12 @@ version: "2"
 sql:
   - engine: postgresql
     schema: migrations/sql
-    queries: internal/finance/queries.sql
+    queries:
+      - internal/finance/queries.sql
+      - internal/finance/due_queries.sql
+      - internal/finance/series_queries.sql
+      - internal/finance/planning_queries.sql
+      - internal/finance/reminder_queries.sql
     gen:
       go:
         package: financedb

@@ -1,0 +1,27 @@
+info:
+  name: apply-payment
+  type: http
+  seq: 50
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/payment-applications"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{paymentApplyKey}}"
+  body:
+    type: json
+    data: |-
+      {"operation_id":"{{operationId}}","revision":{{operationVersion}},"effect":0,"allocations":[{"due_id":"{{dueId}}","version":{{dueVersion}},"movement_minor":"1200","due_minor":"1200"}],"confirm":true,"confirm_access_restriction":false}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("paymentApplyKey")) bru.setVar("paymentApplyKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Review current operation and due detail first. Applies an existing tracked purchase or receipt without changing balances again. The response references the operation. Multiple allocations commit together and cannot exceed its effect capacity. For different currencies supply both actual attributed amounts; no rate is inferred. If the actual account differs, explain that additional sensitive relations may reduce who can see the due, then explicitly set confirm_access_restriction true. Reset paymentApplyKey only for a distinct action; refresh dueVersion after success.

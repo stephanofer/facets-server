@@ -1,0 +1,20 @@
+info:
+  name: list-recurring-series-versions
+  type: http
+  seq: 61
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/{{seriesId}}/versions?limit=50"
+  auth: inherit
+  params:
+    - name: limit
+      value: "50"
+      type: query
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: Historical conditions, reasons and boundaries under current account authorization. Pass the returned numeric next_cursor as cursor. Conditions are immutable; only the generation checkpoint of the active version advances.

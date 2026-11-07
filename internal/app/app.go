@@ -141,6 +141,7 @@ func Run(ctx context.Context, c config.Config, mode, id, operator string, log *s
 				return err
 			}
 			handlers["access.mail"] = identities.MailHandler(sender)
+			handlers["planning.reminder"] = finance.New(identities, store).ReminderHandler()
 		}
 		counter, err := signals.Metrics.Meter("facets").Int64Counter("jobs.completed")
 		if err != nil {
@@ -169,12 +170,13 @@ func serve(ctx context.Context, c config.Config, db *database.DB, signals *telem
 	if err != nil {
 		return err
 	}
-	identities, err := access.New(&execution.Store{DB: db, QueueLimit: c.QueueLimit}, c.Access, finance.SeedDefaults)
+	store := &execution.Store{DB: db, QueueLimit: c.QueueLimit}
+	identities, err := access.New(store, c.Access, finance.SeedDefaults)
 	if err != nil {
 		return err
 	}
 	access.RegisterHTTP(api.Huma, identities, log)
-	finance.RegisterHTTP(api.Huma, finance.New(identities), log)
+	finance.RegisterHTTP(api.Huma, finance.New(identities, store), log)
 	listener, err := net.Listen("tcp", c.Address)
 	if err != nil {
 		return errors.New("HTTP listener unavailable")

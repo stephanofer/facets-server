@@ -19,7 +19,7 @@ func TestFinancialPermissionRevocation(t *testing.T) {
 	owner := f.newUser(t, "scope-owner@example.test")
 	member := f.newUser(t, "scope-member@example.test")
 	memberID := f.join(t, owner, member, "member")
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	base := "/v1/spaces/" + owner.SpaceID
 	input := accountInput("selected")
 	input.Sharing.Grants = []finance.Grant{{MemberID: memberID, Permission: "operate"}}

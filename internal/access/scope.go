@@ -7,6 +7,32 @@ import (
 	"github.com/stephanofer/facets-server/internal/access/accessdb"
 )
 
+// AuthorizeNotificationRecipient validates a persisted membership episode without
+// a session. It grants no financial write authority and holds current identity,
+// preferences and space permissions until the caller commits its durable inbox.
+func (s *Service) AuthorizeNotificationRecipient(ctx context.Context, tx pgx.Tx, space, member string) (accessdb.Membership, error) {
+	q := accessdb.New(tx)
+	m, err := q.GetMember(ctx, accessdb.GetMemberParams{SpaceID: space, ID: member})
+	if err != nil {
+		return m, absent(err)
+	}
+	p, err := q.ReadPrincipal(ctx, m.PrincipalID)
+	if err != nil {
+		return m, absent(err)
+	}
+	if p.State != "active" || p.Realm != "customer" || !p.Notifications {
+		return m, ErrForbidden
+	}
+	current, err := s.AuthorizeSpace(ctx, tx, Actor{principal: p}, space, "read")
+	if err != nil {
+		return m, err
+	}
+	if current.ID != member {
+		return m, ErrForbidden
+	}
+	return current, nil
+}
+
 // AuthenticateCustomer is a transaction participant for subsequent modules.
 // Retain this transaction through authorization, writes and commit; an Actor
 // copied from a previous request is not evidence of current identity or access.

@@ -1,0 +1,27 @@
+info:
+  name: unlink-payment
+  type: http
+  seq: 52
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/dues/{{dueId}}/applications/{{paymentApplicationId}}/unlink"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{paymentUnlinkKey}}"
+  body:
+    type: json
+    data: |-
+      {"version":{{dueVersion}},"reason":"Wrong obligation","confirm":true}
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("paymentUnlinkKey")) bru.setVar("paymentUnlinkKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: Review applications and refresh the due version first. Releases capacity and recalculates fulfillment without reversing the movement or erasing the application. Retain key and original body for retries; reset paymentUnlinkKey only for a distinct action.

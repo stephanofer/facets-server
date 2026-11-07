@@ -1,0 +1,23 @@
+info:
+  name: get-planning-access
+  type: http
+  seq: 63
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/planning-resources/{{planningResourceId}}/access"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("planningAccessVersion", res.body.version);
+          bru.setVar("planningResponsibleMemberId", res.body.responsible_member_id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.version
+      operator: isNumber
+docs: Select planningResourceId from an accountless due or series. Only the responsible member can inspect access configuration. Sharing an expectation never shares related accounts.

@@ -78,7 +78,7 @@ func TestRefundConcurrencyAndPrivacy(t *testing.T) {
 	v := operationInput("refund", shared, "60")
 	v.Refund = &finance.RefundLink{OperationID: id, AmountMinor: "60"}
 	f.request[httpapi.Problem](t, "POST", base+"/operations", owner.Token, "private-link", v, 404)
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
 	for range 2 {

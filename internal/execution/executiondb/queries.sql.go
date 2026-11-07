@@ -34,6 +34,15 @@ func (q *Queries) AppendAudit(ctx context.Context, arg AppendAuditParams) error 
 	return err
 }
 
+const cancelPendingJob = `-- name: CancelPendingJob :exec
+UPDATE jobs SET state='cancelled',payload=''::bytea,updated_at=clock_timestamp() WHERE dedup_key=$1 AND state='pending'
+`
+
+func (q *Queries) CancelPendingJob(ctx context.Context, dedupKey string) error {
+	_, err := q.db.Exec(ctx, cancelPendingJob, dedupKey)
+	return err
+}
+
 const claimJob = `-- name: ClaimJob :one
 WITH next AS (
  SELECT candidate.id FROM jobs candidate WHERE candidate.queue=$1 AND candidate.state='pending' AND candidate.available_at <= clock_timestamp()
@@ -138,6 +147,36 @@ func (q *Queries) FindJob(ctx context.Context, dedupKey string) (Job, error) {
 	return i, err
 }
 
+const findJobs = `-- name: FindJobs :many
+SELECT id,dedup_key,fingerprint FROM jobs WHERE dedup_key=ANY($1::text[])
+`
+
+type FindJobsRow struct {
+	ID          string
+	DedupKey    string
+	Fingerprint []byte
+}
+
+func (q *Queries) FindJobs(ctx context.Context, keys []string) ([]FindJobsRow, error) {
+	rows, err := q.db.Query(ctx, findJobs, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FindJobsRow{}
+	for rows.Next() {
+		var i FindJobsRow
+		if err := rows.Scan(&i.ID, &i.DedupKey, &i.Fingerprint); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const finishJob = `-- name: FinishJob :execrows
 UPDATE jobs SET state=$3, result_ref=$4, error_code=$5,
 payload=CASE WHEN $3 IN ('succeeded','cancelled') THEN ''::bytea ELSE payload END,
@@ -236,8 +275,8 @@ func (q *Queries) GetReceipt(ctx context.Context, arg GetReceiptParams) (GetRece
 }
 
 const insertJob = `-- name: InsertJob :exec
-INSERT INTO jobs (id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+INSERT INTO jobs (id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect,available_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9::timestamptz,clock_timestamp()))
 `
 
 type InsertJobParams struct {
@@ -249,6 +288,7 @@ type InsertJobParams struct {
 	Payload        []byte
 	MaxAttempts    int32
 	ExternalEffect bool
+	AvailableAt    pgtype.Timestamptz
 }
 
 func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
@@ -261,6 +301,45 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 		arg.Payload,
 		arg.MaxAttempts,
 		arg.ExternalEffect,
+		arg.AvailableAt,
+	)
+	return err
+}
+
+const insertJobs = `-- name: InsertJobs :exec
+WITH batch AS (
+ SELECT unnest($2::text[]) AS id,unnest($3::text[]) AS kind,
+ unnest($4::text[]) AS dedup_key,unnest($5::bytea[]) AS fingerprint,
+ unnest($6::bytea[]) AS payload,unnest($7::integer[]) AS attempts,
+ unnest($8::boolean[]) AS external_effect,unnest($9::timestamptz[]) AS available_at
+)
+INSERT INTO jobs(id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect,available_at)
+SELECT id,$1::text,kind,dedup_key,fingerprint,payload,attempts,external_effect,COALESCE(available_at,clock_timestamp()) FROM batch
+`
+
+type InsertJobsParams struct {
+	Queue        string
+	Ids          []string
+	Kinds        []string
+	Keys         []string
+	Fingerprints [][]byte
+	Payloads     [][]byte
+	Attempts     []int32
+	External     []bool
+	Available    []pgtype.Timestamptz
+}
+
+func (q *Queries) InsertJobs(ctx context.Context, arg InsertJobsParams) error {
+	_, err := q.db.Exec(ctx, insertJobs,
+		arg.Queue,
+		arg.Ids,
+		arg.Kinds,
+		arg.Keys,
+		arg.Fingerprints,
+		arg.Payloads,
+		arg.Attempts,
+		arg.External,
+		arg.Available,
 	)
 	return err
 }

@@ -4,7 +4,8 @@ Block 5 is **closed and verified (7 November 2026)**. It supports real manual in
 purchases, internal liquid-account transfers, refunds, reconciliation, consistency
 checks, recent selections, search and common financial queries, as well as
 corrections and voiding with retained revision evidence. Payment
-applications, agreements and card cycles remain in their planned later blocks.
+applications are now being integrated in [block 6](PLANNING.md); agreements and
+card cycles remain in their planned later blocks.
 
 The executable contract is [OpenAPI](openapi.json); the matching requests
 are under [`api-client/finance/`](../api-client/finance/).
@@ -102,7 +103,8 @@ Every page rechecks current access; a cursor is not an authorization artifact.
 
 Migrations 6–9 extend published migrations 1–5 without modifying them. Migrations 6–7
 remain unchanged; 8 adds refunds and 9 adds reconciliation/consistency evidence.
-Readiness requires version 9. Local role provisioning must be refreshed explicitly with
+The block-5 baseline required version 9; the current block-6 slice requires
+[version 10](PLANNING.md). Local role provisioning must be refreshed explicitly with
 `./scripts/dev.ps1 db-config`; startup never migrates automatically.
 
 ## Requirement-to-test map for this delivery

@@ -108,7 +108,7 @@ func TestFinancialAccountsCommandsAndConcurrency(t *testing.T) {
 	f := setup(t)
 	u := f.newUser(t, "concurrent-finance@example.test")
 	base := "/v1/spaces/" + u.SpaceID + "/accounts"
-	s := finance.New(f.service)
+	s := finance.New(f.service, f.store)
 	v := accountInput("private")
 	var wg sync.WaitGroup
 	results := make(chan string, 8)

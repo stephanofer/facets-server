@@ -182,6 +182,11 @@ func (s *Service) prepareCorrection(ctx context.Context, tx pgx.Tx, actor access
 	if err := validateRefundedPurchase(ctx, tx, space, old, replacement, p); err != nil {
 		return old, p, out, err
 	}
+	if replacement != nil {
+		if err := validateAppliedCorrection(ctx, tx, space, m.ID, old, p); err != nil {
+			return old, p, out, err
+		}
+	}
 	out.Accounts, err = correctedBalances(accounts, old.Effects, p.effects)
 	if err == nil && out.ChangeKind != "descriptive" {
 		beforeDate, _ := time.Parse(time.DateOnly, out.BeforeDate)
@@ -250,11 +255,17 @@ func (s *Service) changeOperation(ctx context.Context, c access.SpaceCommand, id
 		_, err := financedb.New(tx).Operation(ctx, financedb.OperationParams{SpaceID: c.SpaceID, ID: id, MemberID: m.ID})
 		return absent(err)
 	}, func(ctx context.Context, tx pgx.Tx, actor access.Actor, m accessdb.Membership) (string, error) {
+		if _, err := financedb.New(tx).LockApplicationOperation(ctx, financedb.LockApplicationOperationParams{SpaceID: c.SpaceID, ID: id}); err != nil {
+			return "", absent(err)
+		}
 		old, p, consequences, err := s.prepareCorrection(ctx, tx, actor, m, c.SpaceID, id, version, replacement)
 		if err != nil {
 			return "", err
 		}
 		if replacement == nil {
+			if err := releaseVoidedApplications(ctx, tx, c.SpaceID, id, actor.ID()); err != nil {
+				return "", err
+			}
 			if err := copyVoidedRevision(ctx, tx, c.SpaceID, old, actor.ID(), reason); err != nil {
 				return "", err
 			}

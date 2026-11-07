@@ -382,30 +382,40 @@ func (s *Service) CreateOperation(ctx context.Context, c access.SpaceCommand, v 
 		}
 		return nil
 	}, func(ctx context.Context, tx pgx.Tx, actor access.Actor, _ accessdb.Membership) (string, error) {
-		p, err := s.planOperation(ctx, tx, actor, c.SpaceID, v, nil)
+		id, err := s.createOperation(ctx, tx, actor, c.SpaceID, v)
 		if err != nil {
-			return "", err
-		}
-		id := uuid.New().String()
-		q := financedb.New(tx)
-		if err := q.InsertOperation(ctx, financedb.InsertOperationParams{ID: id, SpaceID: c.SpaceID, Kind: v.Kind, Author: actor.ID()}); err != nil {
-			return "", err
-		}
-		if err := insertPlannedRevision(ctx, tx, c.SpaceID, id, 1, actor.ID(), "", "initial", v, p); err != nil {
-			return "", err
-		}
-		balances, err := correctedBalances(p.accounts, nil, p.effects)
-		if err != nil {
-			return "", err
-		}
-		if err := setAccountProjections(ctx, tx, c.SpaceID, balances); err != nil {
-			return "", err
-		}
-		if err := q.MarkAffectedReconciliations(ctx, financedb.MarkAffectedReconciliationsParams{SpaceID: c.SpaceID, OperationID: id, NewRevision: 1}); err != nil {
 			return "", err
 		}
 		return id, audit(ctx, tx, actor, c.SpaceID, c.Kind, id)
 	})
+}
+
+// createOperation participates in the caller's transaction so a composed command
+// cannot commit the financial fact separately from its applications.
+func (s *Service) createOperation(ctx context.Context, tx pgx.Tx, actor access.Actor, space string, v OperationCreate) (string, error) {
+	p, err := s.planOperation(ctx, tx, actor, space, v, nil)
+	if err != nil {
+		return "", err
+	}
+	id := uuid.New().String()
+	q := financedb.New(tx)
+	if err := q.InsertOperation(ctx, financedb.InsertOperationParams{ID: id, SpaceID: space, Kind: v.Kind, Author: actor.ID()}); err != nil {
+		return "", err
+	}
+	if err := insertPlannedRevision(ctx, tx, space, id, 1, actor.ID(), "", "initial", v, p); err != nil {
+		return "", err
+	}
+	balances, err := correctedBalances(p.accounts, nil, p.effects)
+	if err != nil {
+		return "", err
+	}
+	if err := setAccountProjections(ctx, tx, space, balances); err != nil {
+		return "", err
+	}
+	if err := q.MarkAffectedReconciliations(ctx, financedb.MarkAffectedReconciliationsParams{SpaceID: space, OperationID: id, NewRevision: 1}); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 type PositionEffectView struct {

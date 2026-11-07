@@ -21,9 +21,14 @@ import (
 	"github.com/stephanofer/facets-server/internal/money"
 )
 
-type Service struct{ access *access.Service }
+type Service struct {
+	access *access.Service
+	jobs   *execution.Store
+}
 
-func New(identity *access.Service) *Service { return &Service{access: identity} }
+func New(identity *access.Service, jobs *execution.Store) *Service {
+	return &Service{access: identity, jobs: jobs}
+}
 
 type AccountProposal struct {
 	Visibility                   string `json:"visibility" enum:"private,space"`

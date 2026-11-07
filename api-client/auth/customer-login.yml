@@ -23,6 +23,9 @@ runtime:
         if (res.status === 200) {
           bru.setVar("accessToken", res.body.token);
           bru.setVar("sessionId", res.body.session_id);
+          for (const key of ["dueId", "dueVersion", "dueCreateKey", "dueEditKey", "paymentApplyKey", "paymentApplicationId", "paymentUnlinkKey", "paymentOperationKey", "effectOrdinal"]) bru.setVar(key, "");
+          for (const key of ["seriesId", "seriesVersion", "seriesGeneratedUntil", "seriesCreateKey", "seriesEditKey", "seriesGenerateKey"]) bru.setVar(key, "");
+          for (const key of ["planningResourceId", "planningAccessVersion", "planningResponsibleMemberId", "planningAccessKey", "planningRecoveryKey", "recoveryPlanningId", "recoveryPlanningVersion", "reminderVersion", "reminderConfigureKey", "reminderSnoozeKey", "reminderSnoozeUntil", "seriesReminderVersion", "seriesReminderKey"]) bru.setVar(key, "");
           for (const key of ["profileVersion", "spaceId", "spaceVersion", "membershipId", "memberId", "invitationId", "financeSpaceId", "operationId", "operationActionKey", "operationVersion", "operationCorrectionKey", "operationVoidKey", "operationRevision", "operationRevisionCursor", "reconciliationId", "reconciliationActionKey", "consistencyCheckId", "consistencyActionKey"]) {
             bru.setVar(key, "");
           }

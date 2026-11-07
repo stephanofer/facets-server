@@ -19,11 +19,27 @@ SELECT pg_advisory_xact_lock(18182026, CASE WHEN sqlc.arg(queue)::text='notifica
 SELECT count(*) FROM jobs WHERE queue=$1 AND state IN ('pending','running');
 
 -- name: InsertJob :exec
-INSERT INTO jobs (id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8);
+INSERT INTO jobs (id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect,available_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE(sqlc.narg(available_at)::timestamptz,clock_timestamp()));
+
+-- name: FindJobs :many
+SELECT id,dedup_key,fingerprint FROM jobs WHERE dedup_key=ANY(sqlc.arg(keys)::text[]);
+
+-- name: InsertJobs :exec
+WITH batch AS (
+ SELECT unnest(sqlc.arg(ids)::text[]) AS id,unnest(sqlc.arg(kinds)::text[]) AS kind,
+ unnest(sqlc.arg(keys)::text[]) AS dedup_key,unnest(sqlc.arg(fingerprints)::bytea[]) AS fingerprint,
+ unnest(sqlc.arg(payloads)::bytea[]) AS payload,unnest(sqlc.arg(attempts)::integer[]) AS attempts,
+ unnest(sqlc.arg(external)::boolean[]) AS external_effect,unnest(sqlc.arg(available)::timestamptz[]) AS available_at
+)
+INSERT INTO jobs(id,queue,kind,dedup_key,fingerprint,payload,max_attempts,external_effect,available_at)
+SELECT id,sqlc.arg(queue)::text,kind,dedup_key,fingerprint,payload,attempts,external_effect,COALESCE(available_at,clock_timestamp()) FROM batch;
 
 -- name: FindJob :one
 SELECT * FROM jobs WHERE dedup_key=$1;
+
+-- name: CancelPendingJob :exec
+UPDATE jobs SET state='cancelled',payload=''::bytea,updated_at=clock_timestamp() WHERE dedup_key=$1 AND state='pending';
 
 -- name: GetJob :one
 SELECT id, queue, kind, state, attempts, max_attempts, result_ref, error_code, created_at, updated_at
