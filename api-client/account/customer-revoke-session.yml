@@ -2,14 +2,15 @@ info:
   name: customer-revoke-session
   type: http
   seq: 4
+
 http:
   method: POST
   url: "{{baseUrl}}/v1/me/sessions/revoke"
-  auth: inherit
   body:
     type: json
-    data: |-
-      { "id": "{{sessionId}}", "all": false }
+    data: '{ "id": "{{sessionId}}", "all": true }'
+  auth: inherit
+
 runtime:
   scripts:
     - type: after-response
@@ -28,6 +29,14 @@ runtime:
     - expression: res.body.status
       operator: eq
       value: acknowledged
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
 docs: |-
   Default: revoke the current session captured at login. To revoke a different
   session, select its ID from customer-sessions; that requires recent authentication.
