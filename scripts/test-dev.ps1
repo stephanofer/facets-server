@@ -109,6 +109,48 @@ try {
     try { . $verify } catch { $failed = $_.Exception.Message -eq 'Simulated failure: go mod verify' }
     if (-not $failed) { throw 'verify swallowed a module integrity failure.' }
     Write-Host 'PASS: verify is separate and propagates failures'
+
+    # Exercise the actual local configuration and runtime functions, not copies.
+    foreach ($name in @('Import-LocalConfiguration', 'Invoke-LocalRuntime')) {
+        $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+        . ([scriptblock]::Create($definition.Extent.Text))
+    }
+    $saved = @{}
+    foreach ($key in @('FACETS_DIAGNOSTICS_ADDRESS', 'FACETS_APP_PASSWORD', 'POSTGRES_DB', 'POSTGRES_PORT', 'FACETS_DATABASE_URL')) {
+        $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+        [Environment]::SetEnvironmentVariable($key, $null, 'Process')
+    }
+    function Invoke-Checked([string] $File, [string[]] $Arguments) {
+        if ($File -ne 'go' -or ($Arguments -join ' ') -ne "run ./cmd/server -mode $script:expectedMode") { throw 'Unexpected local runtime command.' }
+        if ($env:FACETS_DIAGNOSTICS_ADDRESS -ne $script:expectedDiagnostics) { throw "Unexpected diagnostics: $env:FACETS_DIAGNOSTICS_ADDRESS" }
+    }
+    try {
+        foreach ($case in @(
+            @{ Mode = 'serve'; Local = '127.0.0.1:9090'; Session = ''; Want = '127.0.0.1:9090' },
+            @{ Mode = 'worker'; Local = '127.0.0.1:9090'; Session = ''; Want = '127.0.0.1:9091' },
+            @{ Mode = 'worker'; Local = ''; Session = ''; Want = '127.0.0.1:9091' },
+            @{ Mode = 'worker'; Local = '127.0.0.1:9191'; Session = ''; Want = '127.0.0.1:9191' },
+            @{ Mode = 'worker'; Local = '127.0.0.1:9090'; Session = '127.0.0.1:9090'; Want = '127.0.0.1:9090' },
+            @{ Mode = 'worker'; Local = '127.0.0.1:9090'; Session = '127.0.0.1:9292'; Want = '127.0.0.1:9292' },
+            @{ Mode = 'serve'; Local = '127.0.0.1:9090'; Session = '127.0.0.1:9292'; Want = '127.0.0.1:9292' }
+        )) {
+            Set-Content '.env' "FACETS_APP_PASSWORD=synthetic`nPOSTGRES_DB=synthetic`nPOSTGRES_PORT=5432`nFACETS_DIAGNOSTICS_ADDRESS=$($case.Local)"
+            $env:FACETS_DIAGNOSTICS_ADDRESS = $case.Session
+            $before = $env:FACETS_DIAGNOSTICS_ADDRESS
+            $previousRuntime = @{}
+            $script:expectedMode = $case.Mode
+            $script:expectedDiagnostics = $case.Want
+            Invoke-LocalRuntime $case.Mode
+            foreach ($key in $previousRuntime.Keys) {
+                [Environment]::SetEnvironmentVariable($key, $previousRuntime[$key], 'Process')
+            }
+            if ($env:FACETS_DIAGNOSTICS_ADDRESS -ne $before) { throw 'Local runtime did not preserve the original diagnostics environment.' }
+        }
+        Write-Host 'PASS: local HTTP/worker defaults, explicit overrides and environment restoration'
+    }
+    finally {
+        foreach ($key in $saved.Keys) { [Environment]::SetEnvironmentVariable($key, $saved[$key], 'Process') }
+    }
 }
 finally {
     Pop-Location

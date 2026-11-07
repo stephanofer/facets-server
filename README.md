@@ -5,6 +5,7 @@ the server; the Android client is developed separately.
 
 ## Documentation
 
+- [Local operation](docs/LOCAL_DEVELOPMENT.md)
 - [Product design](docs/producto/PRODUCT_DESIGN.md)
 - [Technical design](docs/producto/TECHNICAL_DESIGN.md)
 - [Development plan](docs/producto/DEVELOPMENT_PLAN.md)

@@ -113,6 +113,22 @@ function Import-LocalConfiguration {
     $env:FACETS_DATABASE_URL = "postgres://facets_app:$password@127.0.0.1:$($env:POSTGRES_PORT)/${database}?sslmode=disable"
 }
 
+function Invoke-LocalRuntime {
+    param([ValidateSet('serve', 'worker')] [string] $Mode)
+    $explicitDiagnostics = -not [string]::IsNullOrEmpty($env:FACETS_DIAGNOSTICS_ADDRESS)
+    Import-LocalConfiguration
+    # The template's shared default is for HTTP. Give the local worker its own
+    # port, preserving both session overrides and custom addresses in .env.
+    if ($Mode -eq 'worker' -and -not $explicitDiagnostics -and
+        $env:FACETS_DIAGNOSTICS_ADDRESS -in @('', $null, '127.0.0.1:9090')) {
+        if (-not $previousRuntime.ContainsKey('FACETS_DIAGNOSTICS_ADDRESS')) {
+            $previousRuntime['FACETS_DIAGNOSTICS_ADDRESS'] = $env:FACETS_DIAGNOSTICS_ADDRESS
+        }
+        $env:FACETS_DIAGNOSTICS_ADDRESS = '127.0.0.1:9091'
+    }
+    Invoke-Checked go @('run', './cmd/server', '-mode', $Mode)
+}
+
 function Invoke-Migrate {
     Import-LocalConfiguration
     $previousRuntime['FACETS_MIGRATION_URL'] = $env:FACETS_MIGRATION_URL
@@ -259,8 +275,8 @@ try {
             Invoke-Checked go (@('test', '-timeout=2m') + $Packages)
         }
         'build' { Invoke-Build }
-        'run' { Import-LocalConfiguration; Invoke-Checked go @('run', './cmd/server') }
-        'worker' { Import-LocalConfiguration; Invoke-Checked go @('run', './cmd/server', '-mode', 'worker') }
+        'run' { Invoke-LocalRuntime 'serve' }
+        'worker' { Invoke-LocalRuntime 'worker' }
         'migrate' { Invoke-Migrate }
         'db-config' { Initialize-DatabaseRoles }
         'test' { Invoke-Checked go (@('test', '-count=1', '-timeout=2m') + $Packages) }

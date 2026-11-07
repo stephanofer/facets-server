@@ -548,6 +548,8 @@ Los límites iniciales son presupuestos configurados y probados, no resultados d
 
 ### 19.5. Concreción de identidad y acceso
 
+La operación local se describe en [Local operation](../LOCAL_DEVELOPMENT.md). Únicamente en `development`, sin `FACETS_MAIL_FROM`, el worker entrega los mensajes mediante logs locales con destinatario, asunto y cuerpo; conserva las revalidaciones y la limpieza del material de entrega del handler normal. Esos logs contienen secretos: solo datos sintéticos y sin exportación a sistemas compartidos. Configurar remitente selecciona SES sin fallback ante errores; `production` y `test` siguen exigiendo configuración válida de SES. El script local separa los puertos de diagnóstico HTTP/worker por defecto (9090/9091), respetando direcciones personalizadas y overrides explícitos de sesión.
+
 El área `internal/access` mantiene las identidades y la frontera de membresías/capacidades; los módulos financieros utilizarán su autorización transaccional, sin conceder acceso privado por administrar un espacio. Las concesiones y artefactos se vinculan a la identidad de la membresía vigente y a su época de acceso; reincorporarse crea otra membresía, no restaura permisos anteriores.
 
 La migración 2 amplía la base sin modificar la migración publicada del bloque 2. El alta verificada confirma conjuntamente identidad, espacio personal, propietario, capacidades y auditoría. Los tokens invalidables almacenan verificadores; solo su entrega durable conserva material cifrado transitorio y separado, con caducidad, revalidación y limpieza. No se guarda el token utilizable en texto claro ni en el payload del outbox. El cifrado utiliza AES-GCM con nonce aleatorio de la biblioteca estándar y contexto autenticado, bajo una clave externa a PostgreSQL.

@@ -1,4 +1,5 @@
-// Package mail provides bounded transactional email delivery through Amazon SES.
+// Package mail provides bounded transactional email delivery through Amazon SES
+// and explicit development-only log delivery.
 package mail
 
 import (

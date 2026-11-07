@@ -134,7 +134,7 @@ func Run(ctx context.Context, c config.Config, mode, id, operator string, log *s
 			if err != nil {
 				return err
 			}
-			sender, err := mail.LoadSES(ctx, mail.Options{From: c.MailFrom, Timeout: min(10*time.Second, c.JobTimeout)})
+			sender, err := mail.LoadSender(ctx, c.Environment, mail.Options{From: c.MailFrom, Timeout: min(10*time.Second, c.JobTimeout)}, log)
 			if err != nil {
 				return err
 			}
