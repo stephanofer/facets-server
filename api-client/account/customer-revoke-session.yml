@@ -1,0 +1,33 @@
+info:
+  name: customer-revoke-session
+  type: http
+  seq: 4
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/sessions/revoke"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "id": "{{sessionId}}", "all": false }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const body = req.getBody();
+          if (body.all || body.id === bru.getVar("sessionId") || !body.id) {
+            bru.setVar("accessToken", "");
+            bru.setVar("sessionId", "");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Default: revoke the current session captured at login. To revoke a different
+  session, select its ID from customer-sessions; that requires recent authentication.

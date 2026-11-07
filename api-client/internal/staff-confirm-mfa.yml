@@ -1,0 +1,34 @@
+info:
+  name: staff-confirm-mfa
+  type: http
+  seq: 6
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/me/mfa/confirm"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "code": "{{staffMfaCode}}" }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!/^\d{6}$/.test(bru.interpolate("{{staffMfaCode}}"))) {
+          throw new Error("Set STAFF_MFA_CODE to the six-digit TOTP for the pending MFA enrollment.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("staffToken", "");
+          bru.setVar("staffSessionId", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.recovery_codes
+      operator: isArray
+docs: |-
+  Requires pending enrollment and recent authentication. Revokes all staff sessions.
+  Store recovery codes securely; log in with a new TOTP step or unused recovery code.

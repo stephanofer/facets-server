@@ -1,0 +1,37 @@
+info:
+  name: confirm-email-change
+  type: http
+  seq: 6
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/email/confirm"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "token": "{{emailChangeCode}}" }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!/^[A-Za-z0-9_-]{43}$/.test(bru.interpolate("{{emailChangeCode}}"))) {
+          throw new Error("Set EMAIL_CHANGE_CODE in api-client/.env from the worker mail log.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("customerEmail", bru.interpolate("{{newCustomerEmail}}"));
+          bru.setVar("accessToken", "");
+          bru.setVar("sessionId", "");
+          bru.setVar("profileVersion", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Requires recent authentication and revokes all sessions. Next login uses the
+  new email in memory; update CUSTOMER_EMAIL in .env before restarting Bruno.

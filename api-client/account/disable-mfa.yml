@@ -1,0 +1,32 @@
+info:
+  name: disable-mfa
+  type: http
+  seq: 11
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/mfa/disable"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "confirm": true }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("accessToken", "");
+          bru.setVar("sessionId", "");
+          bru.setVar("profileVersion", "");
+          bru.setVar("customerMfaCode", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Requires recent authentication. Revokes all customer sessions and invalidates
+  recovery codes. Clear CUSTOMER_MFA_CODE in .env, then sign in again.

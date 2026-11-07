@@ -1,0 +1,31 @@
+info:
+  name: register
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/register"
+  # No auth: do not inherit the collection Bearer token.
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{customerEmail}}",
+        "password": "{{customerPassword}}",
+        "name": "Local Developer",
+        "currency": "USD",
+        "zone": "America/Lima",
+        "locale": "en-US"
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Registration queues verification mail; it does not create a session.
+  Copy the full code from the worker log into VERIFICATION_CODE in .env,
+  then run verify-email. Existing addresses receive the same acknowledgement.

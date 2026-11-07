@@ -1,0 +1,24 @@
+info:
+  name: invitations
+  type: folder
+  seq: 5
+request:
+  auth: inherit
+  scripts:
+    - type: before-request
+      code: |-
+        const name = req.getName();
+        if (["preview-invitation", "decide-invitation"].includes(name)) {
+          if (!/^[A-Za-z0-9_-]{43}$/.test(bru.interpolate("{{invitationCode}}"))) {
+            throw new Error("Set INVITATION_CODE from the recipient's worker mail log; sign in as that recipient.");
+          }
+        } else {
+          if (!bru.getVar("spaceId")) {
+            const response = await bru.runRequest("spaces/list-spaces");
+            if (response.status !== 200 || !bru.getVar("spaceId")) throw new Error("No accessible space. Run create-space first.");
+          }
+          if (["resend-invitation", "cancel-invitation"].includes(name) && !bru.getVar("invitationId")) {
+            const response = await bru.runRequest("invitations/list-invitations");
+            if (response.status !== 200 || !bru.getVar("invitationId")) throw new Error("No pending invitation. Run invite-member first.");
+          }
+        }

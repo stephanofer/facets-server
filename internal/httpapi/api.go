@@ -93,6 +93,7 @@ func New(o Options) (*API, error) {
 	}
 	mux := http.NewServeMux()
 	cfg := huma.DefaultConfig("Facets server", "0.3.0")
+	cfg.CreateHooks = nil // Disable schema discovery metadata, not validation or OpenAPI.
 	cfg.Info.Description = "Backend for the Facets finance tracker, managing customer accounts, secure access, and shared financial spaces."
 	cfg.Servers = []*huma.Server{{URL: "http://127.0.0.1:8080", Description: "Local development server"}}
 	cfg.Tags = []*huma.Tag{

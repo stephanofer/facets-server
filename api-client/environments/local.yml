@@ -1,0 +1,57 @@
+name: local
+variables:
+  - name: baseUrl
+    value: http://127.0.0.1:8080
+  - name: customerEmail
+    value: "{{process.env.CUSTOMER_EMAIL}}"
+  - name: customerPassword
+    value: "{{process.env.CUSTOMER_PASSWORD}}"
+  - name: customerNewPassword
+    value: "{{process.env.CUSTOMER_NEW_PASSWORD}}"
+  - name: staffEmail
+    value: "{{process.env.STAFF_EMAIL}}"
+  - name: staffPassword
+    value: "{{process.env.STAFF_PASSWORD}}"
+  - name: staffNewPassword
+    value: "{{process.env.STAFF_NEW_PASSWORD}}"
+  - name: inviteeEmail
+    value: "{{process.env.INVITEE_EMAIL}}"
+  - name: newCustomerEmail
+    value: "{{process.env.NEW_CUSTOMER_EMAIL}}"
+  - name: verificationCode
+    value: "{{process.env.VERIFICATION_CODE}}"
+  - name: recoveryToken
+    value: "{{process.env.RECOVERY_TOKEN}}"
+  - name: emailChangeCode
+    value: "{{process.env.EMAIL_CHANGE_CODE}}"
+  - name: invitationCode
+    value: "{{process.env.INVITATION_CODE}}"
+  - name: customerMfaCode
+    value: "{{process.env.CUSTOMER_MFA_CODE}}"
+  - name: staffMfaCode
+    value: "{{process.env.STAFF_MFA_CODE}}"
+  - name: accessToken
+    value: ""
+    description: Captured in memory by customer login or reauthentication. Never paste tokens here.
+  - name: sessionId
+    value: ""
+  - name: staffToken
+    value: ""
+    description: Captured in memory by staff login or reauthentication.
+  - name: staffSessionId
+    value: ""
+  - name: profileVersion
+    value: ""
+  - name: spaceId
+    value: ""
+    description: First accessible space, or the last created or fetched space.
+  - name: spaceVersion
+    value: ""
+  - name: membershipId
+    value: ""
+  - name: memberId
+    value: ""
+    description: Automatically selected non-owner membership from list-members.
+  - name: invitationId
+    value: ""
+    description: Last created invitation, or first pending invitation from list-invitations.

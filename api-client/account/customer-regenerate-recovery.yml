@@ -1,0 +1,22 @@
+info:
+  name: customer-regenerate-recovery
+  type: http
+  seq: 10
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/mfa/recovery-codes"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "confirm": true }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.recovery_codes
+      operator: isArray
+docs: |-
+  Requires enabled MFA and recent authentication. Invalidates all previous
+  recovery codes. Store the replacement codes securely, never in versioned YAML.

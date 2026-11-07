@@ -1,0 +1,23 @@
+info:
+  name: request-recovery
+  type: http
+  seq: 7
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/recovery"
+  # No auth: do not inherit the collection Bearer token.
+  body:
+    type: json
+    data: |-
+      { "email": "{{customerEmail}}" }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Set RECOVERY_TOKEN in .env from the worker's recovery mail. Acknowledgement
+  does not disclose whether this address exists. Recovery never bypasses MFA.

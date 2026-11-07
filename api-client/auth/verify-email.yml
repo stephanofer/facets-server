@@ -1,0 +1,26 @@
+info:
+  name: verify-email
+  type: http
+  seq: 3
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/verify"
+  # No auth: do not inherit the collection Bearer token.
+  body:
+    type: json
+    data: |-
+      { "token": "{{verificationCode}}" }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!/^[A-Za-z0-9_-]{43}$/.test(bru.interpolate("{{verificationCode}}"))) {
+          throw new Error("Set VERIFICATION_CODE in api-client/.env from the worker mail log.");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged

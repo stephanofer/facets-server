@@ -1,0 +1,32 @@
+info:
+  name: customer-reauthenticate
+  type: http
+  seq: 5
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/reauthenticate"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "password": "{{customerPassword}}", "code": "{{customerMfaCode}}" }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("accessToken", res.body.token);
+          bru.setVar("sessionId", res.body.session_id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.token
+      operator: matches
+      value: "^c_[A-Za-z0-9_-]{43}$"
+    - expression: res.body.session_id
+      operator: isString
+docs: |-
+  Rotates the session and revokes the previous token. With MFA, do not reuse
+  the TOTP step or recovery code consumed by login.

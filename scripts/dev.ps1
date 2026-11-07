@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'format', 'check', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'verify', 'validate', 'db-up', 'db-down')]
+    [ValidateSet('setup', 'doctor', 'generate', 'openapi', 'api-client-check', 'api-client-smoke', 'format', 'check', 'build', 'run', 'worker', 'migrate', 'db-config', 'test', 'integration', 'race', 'lint', 'verify', 'validate', 'db-up', 'db-down')]
     [string] $Task = 'validate',
     [string[]] $Packages = @('./...')
 )
@@ -66,6 +66,10 @@ function Get-ValidationFingerprint {
         $_.Name -in @('go.mod', 'go.sum', 'environment.json', 'sqlc.yaml', '.golangci.yml', 'compose.yaml')
     } | ForEach-Object { $_.FullName })
     $files += (Join-Path $root 'docs/openapi.json')
+    # Include collection inputs, but never local dotenv credentials or CLI caches.
+    $files += @(Get-ChildItem (Join-Path $root 'api-client') -File -Recurse |
+        Where-Object { $_.Extension -in @('.yml', '.yaml', '.bru') -and $_.FullName -notmatch '[\\/](node_modules|\.git)[\\/]' } |
+        ForEach-Object { $_.FullName })
     $hashes = foreach ($file in $files | Sort-Object -Unique) {
         '{0}:{1}' -f $file, (Get-FileHash $file -Algorithm SHA256).Hash
     }
@@ -199,6 +203,27 @@ function Assert-Docker {
     }
 }
 
+function Assert-APIClient {
+    # Always execute: Go's package filter/cache must not bypass collection edits.
+    Invoke-Checked go @('test', '-count=1', '-timeout=2m', '-run', '^TestCollectionContract$', './tests/apiclient')
+}
+
+function Invoke-APIClientSmoke {
+    Assert-APIClient
+    if (-not (Get-Command bru -ErrorAction SilentlyContinue)) {
+        throw 'Bruno CLI is optional and is not installed. Install @usebruno/cli@4.3.0 explicitly; see api-client/README.md.'
+    }
+    if (-not (Test-Path (Join-Path $root 'api-client/.env'))) {
+        throw 'Configure api-client/.env and verify the local customer first; see api-client/README.md.'
+    }
+    Push-Location (Join-Path $root 'api-client')
+    try {
+        # No parallelism, reports, auto-installation, database provisioning or secrets in arguments.
+        Invoke-Checked bru @('run', '--env', 'local', '--tags', 'smoke', '--bail', '--sandbox', 'safe')
+    }
+    finally { Pop-Location }
+}
+
 function Invoke-Doctor {
     Invoke-Checked go @('version')
     Assert-Docker
@@ -268,9 +293,12 @@ try {
         'doctor' { Invoke-Doctor }
         'generate' { Invoke-Checked go @('tool', 'sqlc', 'generate'); Write-OpenAPI }
         'openapi' { Write-OpenAPI }
+        'api-client-check' { Assert-APIClient }
+        'api-client-smoke' { Invoke-APIClientSmoke }
         'format' { Invoke-Format }
         'check' {
             Invoke-Format -Check
+            Assert-APIClient
             # Local iteration only: retain Go's test cache. Not a closure gate.
             Invoke-Checked go (@('test', '-timeout=2m') + $Packages)
         }
@@ -312,6 +340,7 @@ try {
             $schemaBefore = (Get-FileHash 'docs/openapi.json' -Algorithm SHA256).Hash
             Write-OpenAPI
             if ($schemaBefore -ne (Get-FileHash 'docs/openapi.json' -Algorithm SHA256).Hash) { throw 'OpenAPI contract is stale. Review generated changes.' }
+            Assert-APIClient
             Invoke-Checked go @('tool', 'goose', '-dir', 'tests/environment/testdata/migrations', 'validate')
             Invoke-Checked go @('tool', 'goose', '-dir', 'migrations/sql', 'validate')
             # Exercise real database behavior before the slower static analysis.

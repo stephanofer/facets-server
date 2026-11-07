@@ -39,6 +39,7 @@ function Write-OpenAPI {
 function Invoke-Integration { Record 'integration' }
 function Invoke-Race { Record 'race' }
 function Invoke-Build { Record 'build' }
+function Assert-APIClient { Record 'api-client drift check' }
 function Get-ValidationFingerprint {
     $script:fingerprints++
     if ($script:changedInputs -and $script:fingerprints -gt 1) { return 'changed' }
@@ -90,7 +91,7 @@ try {
     $expectedSteps = @(
         'doctor', 'format check', 'script tests',
         'go test -count=1 -timeout=2m ./...', 'go mod tidy -diff',
-        'go tool sqlc compile', 'sqlc drift check', 'openapi',
+        'go tool sqlc compile', 'sqlc drift check', 'openapi', 'api-client drift check',
         'go tool goose -dir tests/environment/testdata/migrations validate',
         'go tool goose -dir migrations/sql validate', 'integration',
         'go vet -tags=integration ./...', 'go tool golangci-lint run', 'race',
@@ -109,6 +110,50 @@ try {
     try { . $verify } catch { $failed = $_.Exception.Message -eq 'Simulated failure: go mod verify' }
     if (-not $failed) { throw 'verify swallowed a module integrity failure.' }
     Write-Host 'PASS: verify is separate and propagates failures'
+
+    # A filtered fast check must still execute the collection guard.
+    $script:steps = [Collections.Generic.List[string]]::new()
+    $script:failAt = ''
+    $Packages = @('./internal/money')
+    . (Get-TaskBody 'check')
+    if (($script:steps -join '|') -ne 'format check|api-client drift check|go test -timeout=2m ./internal/money') {
+        throw 'Filtered check bypasses the collection guard.'
+    }
+    foreach ($name in @('Assert-APIClient', 'Invoke-APIClientSmoke')) {
+        $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+        . ([scriptblock]::Create($definition.Extent.Text))
+    }
+    $script:steps = [Collections.Generic.List[string]]::new()
+    . (Get-TaskBody 'api-client-check')
+    if (($script:steps -join '|') -ne 'go test -count=1 -timeout=2m -run ^TestCollectionContract$ ./tests/apiclient') {
+        throw 'Collection guard must execute uncached without Bruno.'
+    }
+    New-Item (Join-Path $root 'api-client') -ItemType Directory -Force | Out-Null
+    # Simulate an installed executable without invoking Node or Bruno.
+    function bru { }
+    $beforeLocation = (Get-Location).Path
+    $failed = $false
+    try { Invoke-APIClientSmoke } catch { $failed = $_.Exception.Message.StartsWith('Configure api-client/.env') }
+    if (-not $failed) { throw 'Smoke must explain missing client configuration.' }
+    Set-Content (Join-Path $root 'api-client/.env') 'CUSTOMER_EMAIL=synthetic@example.test'
+    $script:smokeFailure = $false
+    function Invoke-Checked([string] $File, [string[]] $Arguments) {
+        if ($File -eq 'go') {
+            if (($Arguments -join ' ') -ne 'test -count=1 -timeout=2m -run ^TestCollectionContract$ ./tests/apiclient') { throw 'Unexpected collection guard.' }
+            return
+        }
+        if ($File -ne 'bru' -or ($Arguments -join ' ') -ne 'run --env local --tags smoke --bail --sandbox safe') { throw 'Unexpected smoke command.' }
+        if ((Get-Location).Path -ne (Join-Path $root 'api-client')) { throw 'Smoke must run from the collection directory.' }
+        if ($script:smokeFailure) { throw 'Simulated Bruno failure' }
+    }
+    . (Get-TaskBody 'api-client-smoke')
+    if ((Get-Location).Path -ne $beforeLocation) { throw 'Smoke changed the caller directory.' }
+    $script:smokeFailure = $true
+    $failed = $false
+    try { Invoke-APIClientSmoke } catch { $failed = $_.Exception.Message -eq 'Simulated Bruno failure' }
+    if (-not $failed -or (Get-Location).Path -ne $beforeLocation) { throw 'Smoke swallowed a failure or leaked its directory.' }
+    Remove-Item Function:bru
+    Write-Host 'PASS: filtered check, uncached collection guard, smoke arguments, configuration, failures and directory restoration'
 
     # Exercise the actual local configuration and runtime functions, not copies.
     foreach ($name in @('Import-LocalConfiguration', 'Invoke-LocalRuntime')) {

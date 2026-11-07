@@ -1,0 +1,26 @@
+info:
+  name: customer-profile
+  type: http
+  seq: 1
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/me"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("profileVersion", res.body.version);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.version
+      operator: isNumber
+    - expression: res.body.mfa_enabled
+      operator: isBoolean

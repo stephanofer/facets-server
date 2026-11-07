@@ -1,0 +1,20 @@
+info:
+  name: space-capabilities
+  type: http
+  seq: 5
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/access"
+  auth: inherit
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.capabilities
+      operator: isArray
+    - expression: res.body.state
+      operator: isString
+    - expression: res.body.billing_member
+      operator: isString

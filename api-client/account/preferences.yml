@@ -1,0 +1,39 @@
+info:
+  name: preferences
+  type: http
+  seq: 3
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/me/preferences"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Local Developer",
+        "locale": "en-US",
+        "zone": "America/Lima",
+        "notifications": true,
+        "version": {{profileVersion}}
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("profileVersion")) {
+          const response = await bru.runRequest("account/customer-profile");
+          if (response.status !== 200) throw new Error("Unable to load profile version. Sign in first.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("profileVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Uses the last captured profile version. After success, the next edit fetches
+  a new version. On 409 version_conflict, run customer-profile and retry.

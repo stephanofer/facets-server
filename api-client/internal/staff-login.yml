@@ -1,0 +1,43 @@
+info:
+  name: staff-login
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/auth/login"
+  # No auth: do not inherit the folder's staff Bearer token.
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{staffEmail}}",
+        "password": "{{staffPassword}}",
+        "device": "Bruno local staff",
+        "code": "{{staffMfaCode}}"
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const code = bru.interpolate("{{staffMfaCode}}");
+        if (!/^\d{6}$/.test(code) && !/^[A-Za-z0-9_-]{43}$/.test(code)) {
+          throw new Error("Provision staff offline first, then set STAFF_MFA_CODE to a fresh TOTP or unused recovery code.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("staffToken", res.body.token);
+          bru.setVar("staffSessionId", res.body.session_id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.token
+      operator: matches
+      value: "^s_[A-Za-z0-9_-]{43}$"
+    - expression: res.body.session_id
+      operator: isString
+docs: |-
+  Staff is provisioned offline with mandatory MFA; customer registration cannot
+  create staff. Supply a fresh TOTP/unused recovery code. Never uses accessToken.

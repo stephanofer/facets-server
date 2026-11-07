@@ -1,0 +1,23 @@
+info:
+  name: request-verification
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/verification"
+  # No auth: do not inherit the collection Bearer token.
+  body:
+    type: json
+    data: |-
+      { "email": "{{customerEmail}}" }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Optional resend. Respect the resend delay; acknowledgement does not guarantee
+  that a new code was issued. Use the latest delivered verification code.

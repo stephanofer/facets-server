@@ -1,0 +1,30 @@
+info:
+  name: invite-member
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/invitations"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      { "email": "{{inviteeEmail}}", "role": "member" }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("invitationId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Requires invite capability and available member capacity. Cannot invite yourself.
+  The invitation ID is captured; its secret token is delivered only by the worker.
+  An existing pending invitation to the same address may conflict on repeat sends.

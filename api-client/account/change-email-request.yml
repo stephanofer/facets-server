@@ -1,0 +1,23 @@
+info:
+  name: change-email-request
+  type: http
+  seq: 5
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/email"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "email": "{{newCustomerEmail}}" }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Requires recent authentication. Set EMAIL_CHANGE_CODE in .env from the mail
+  delivered to NEW_CUSTOMER_EMAIL, then run confirm-email-change.

@@ -1,0 +1,29 @@
+info:
+  name: transfer-ownership
+  type: http
+  seq: 10
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/ownership"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      { "member_id": "{{memberId}}", "confirm": true }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("memberId", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Requires current owner and recent authentication. Makes the target the owner
+  and the caller an admin. Billing responsibility does NOT transfer with ownership.

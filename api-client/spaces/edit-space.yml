@@ -1,0 +1,47 @@
+info:
+  name: edit-space
+  type: http
+  seq: 4
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "settings": {
+          "name": "Household Budget Updated",
+          "purpose": "family",
+          "currency": "USD",
+          "zone": "America/Lima",
+          "locale": "en-US",
+          "period_day": 1,
+          "new_account_visibility": "private"
+        },
+        "version": {{spaceVersion}}
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("spaceVersion")) {
+          const response = await bru.runRequest("spaces/get-space");
+          if (response.status !== 200) throw new Error("Unable to load space version.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("spaceVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Requires owner/admin manage capability. Replaces all settings, not a patch.
+  Uses the captured version; on 409 version_conflict, run get-space and retry.
+  Success invalidates the cached version so a subsequent edit fetches it again.

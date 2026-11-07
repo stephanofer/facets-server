@@ -1,0 +1,28 @@
+info:
+  name: get-space
+  type: http
+  seq: 3
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("spaceId", res.body.id);
+          bru.setVar("spaceVersion", res.body.version);
+          bru.setVar("membershipId", res.body.membership_id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.membership_id
+      operator: isString
+    - expression: res.body.version
+      operator: isNumber

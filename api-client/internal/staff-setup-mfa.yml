@@ -1,0 +1,19 @@
+info:
+  name: staff-setup-mfa
+  type: http
+  seq: 5
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/me/mfa/setup"
+  auth: inherit
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.uri
+      operator: isString
+docs: |-
+  Authenticated replacement enrollment, NOT initial staff provisioning. Requires
+  recent authentication. Enroll the returned otpauth URI and set STAFF_MFA_CODE
+  to its TOTP before staff-confirm-mfa. The URI contains a secret.

@@ -1,0 +1,32 @@
+info:
+  name: staff-reauthenticate
+  type: http
+  seq: 4
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/auth/reauthenticate"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "password": "{{staffPassword}}", "code": "{{staffMfaCode}}" }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("staffToken", res.body.token);
+          bru.setVar("staffSessionId", res.body.session_id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.token
+      operator: matches
+      value: "^s_[A-Za-z0-9_-]{43}$"
+    - expression: res.body.session_id
+      operator: isString
+docs: |-
+  Rotates the staff session, revoking the previous token. Supply a NEW TOTP step
+  or unused recovery code; reusing the factor consumed by login is rejected.

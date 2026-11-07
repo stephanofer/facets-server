@@ -1,0 +1,29 @@
+info:
+  name: list-members
+  type: http
+  seq: 6
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/members"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const members = res.body.items || [];
+          const member = members.find(item => item.role !== "owner" && item.id !== bru.getVar("membershipId"))
+            || members.find(item => item.role !== "owner");
+          bru.setVar("memberId", member ? member.id : "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: |-
+  Selects a non-owner member, preferring someone other than the caller.
+  Leaves memberId empty if only the owner exists: owner role changes/removal
+  and ownership transfer to self are prohibited. Optional pagination: limit/cursor.

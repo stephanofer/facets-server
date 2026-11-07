@@ -1,0 +1,43 @@
+info:
+  name: create-space
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Household Budget",
+        "purpose": "family",
+        "currency": "USD",
+        "zone": "America/Lima",
+        "locale": "en-US",
+        "period_day": 1,
+        "new_account_visibility": "private"
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("spaceId", res.body.id);
+          for (const key of ["spaceVersion", "membershipId", "memberId", "invitationId"]) {
+            bru.setVar(key, "");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Selects the new space automatically. The response contains only its ID;
+  edit-space fetches get-space when the version has not yet been captured.
+  Each execution uses a new key and creates a NEW space, not a retry.

@@ -1,0 +1,19 @@
+info:
+  name: customer-setup-mfa
+  type: http
+  seq: 8
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/mfa/setup"
+  auth: inherit
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.uri
+      operator: isString
+docs: |-
+  Requires recent authentication. Enroll the returned otpauth URI in your
+  authenticator; it contains a secret. Set CUSTOMER_MFA_CODE to its current
+  TOTP and run customer-confirm-mfa. Do not export the URI to shared reports.

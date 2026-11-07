@@ -1,0 +1,30 @@
+info:
+  name: remove-member
+  type: http
+  seq: 11
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/members/{{memberId}}/remove"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      { "confirm": true }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("memberId", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Requires recent authentication. Removing another member also requires sufficient
+  authority. Owners and billing-responsible members cannot leave/be removed until
+  those responsibilities are resolved. Removal preserves financial history.

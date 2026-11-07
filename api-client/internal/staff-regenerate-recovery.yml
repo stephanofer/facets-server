@@ -1,0 +1,22 @@
+info:
+  name: staff-regenerate-recovery
+  type: http
+  seq: 7
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/me/mfa/recovery-codes"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "confirm": true }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.recovery_codes
+      operator: isArray
+docs: |-
+  Requires recent authentication. Invalidates all old staff recovery codes.
+  Save the replacement codes securely, never in versioned YAML or shared reports.

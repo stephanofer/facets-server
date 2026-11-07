@@ -1,0 +1,22 @@
+info:
+  name: spaces
+  type: folder
+  seq: 4
+request:
+  auth: inherit
+  scripts:
+    - type: before-request
+      code: |-
+        const name = req.getName();
+        if (name !== "list-spaces" && name !== "create-space" && !bru.getVar("spaceId")) {
+          const response = await bru.runRequest("spaces/list-spaces");
+          if (response.status !== 200 || !bru.getVar("spaceId")) {
+            throw new Error("No accessible space. Run create-space or check your membership.");
+          }
+        }
+        if (["change-member-role", "remove-member", "transfer-ownership"].includes(name) && !bru.getVar("memberId")) {
+          const response = await bru.runRequest("spaces/list-members");
+          if (response.status !== 200 || !bru.getVar("memberId")) {
+            throw new Error("No non-owner member available. Invite another customer and have them accept first.");
+          }
+        }

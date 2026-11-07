@@ -1,0 +1,23 @@
+info:
+  name: customer-logout
+  type: http
+  seq: 6
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/logout"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("accessToken", "");
+          bru.setVar("sessionId", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged

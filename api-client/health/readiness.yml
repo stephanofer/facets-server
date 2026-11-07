@@ -1,0 +1,17 @@
+info:
+  name: readiness
+  type: http
+  seq: 2
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/health/ready"
+  # No auth: do not inherit the collection Bearer token.
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: ready

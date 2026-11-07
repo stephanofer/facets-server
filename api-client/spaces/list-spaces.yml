@@ -1,0 +1,33 @@
+info:
+  name: list-spaces
+  type: http
+  seq: 1
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const space = res.body.items && res.body.items[0];
+          if (!space || space.id !== bru.getVar("spaceId")) {
+            bru.setVar("memberId", "");
+            bru.setVar("invitationId", "");
+          }
+          bru.setVar("spaceId", space ? space.id : "");
+          bru.setVar("spaceVersion", space ? space.version : "");
+          bru.setVar("membershipId", space ? space.membership_id : "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: |-
+  Selects the first accessible space on this page. Pagination is optional:
+  add limit (1-100) and cursor from next_cursor to inspect further pages.
+  Running this request explicitly replaces the previous space selection.

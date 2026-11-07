@@ -1,0 +1,21 @@
+info:
+  name: resend-invitation
+  type: http
+  seq: 3
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/invitations/{{invitationId}}/resend"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Pending, unexpired invitation only. Respect the resend delay (otherwise 429).
+  Resending rotates the secret token; use the latest delivered INVITATION_CODE.

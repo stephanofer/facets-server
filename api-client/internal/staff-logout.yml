@@ -1,0 +1,23 @@
+info:
+  name: staff-logout
+  type: http
+  seq: 10
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/auth/logout"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("staffToken", "");
+          bru.setVar("staffSessionId", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged

@@ -1,0 +1,25 @@
+info:
+  name: cancel-invitation
+  type: http
+  seq: 4
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/invitations/{{invitationId}}/cancel"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("invitationId", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Cancels a pending invitation. This is an alternative to acceptance, not a
+  prerequisite for preview-invitation or decide-invitation.

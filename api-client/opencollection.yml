@@ -1,0 +1,32 @@
+opencollection: 1.0.0
+info:
+  name: Facets Server
+  version: "1"
+request:
+  auth:
+    type: bearer
+    token: "{{accessToken}}"
+  scripts:
+    - type: before-request
+      code: |-
+        const publicRequests = ["liveness", "readiness", "register", "request-verification", "verify-email", "request-recovery", "reset-password", "customer-login", "staff-login"];
+        if (!publicRequests.includes(req.getName())) {
+          const staff = req.getUrl().includes("/v1/internal/");
+          const token = bru.getVar(staff ? "staffToken" : "accessToken");
+          if (!token || !token.startsWith(staff ? "s_" : "c_")) {
+            throw new Error(staff ? "Run internal/staff-login first." : "Run auth/customer-login first.");
+          }
+        }
+    - type: after-response
+      code: |-
+        if (res.body && typeof res.body === "object" && Object.prototype.hasOwnProperty.call(res.body, "$schema")) {
+          throw new Error("Response must not include the $schema discovery field.");
+        }
+        const schemaLink = res.getHeader("link");
+        if (schemaLink && String(schemaLink).toLowerCase().includes("describedby")) {
+          throw new Error("Response must not include a schema discovery Link header.");
+        }
+bundled: false
+extensions:
+  bruno:
+    ignore: [node_modules, .git]

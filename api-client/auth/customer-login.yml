@@ -1,0 +1,44 @@
+info:
+  name: customer-login
+  type: http
+  seq: 4
+  tags: [smoke]
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/auth/login"
+  # No auth: do not inherit the collection Bearer token.
+  body:
+    type: json
+    data: |-
+      {
+        "email": "{{customerEmail}}",
+        "password": "{{customerPassword}}",
+        "device": "Bruno local development",
+        "code": "{{customerMfaCode}}"
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("accessToken", res.body.token);
+          bru.setVar("sessionId", res.body.session_id);
+          for (const key of ["profileVersion", "spaceId", "spaceVersion", "membershipId", "memberId", "invitationId"]) {
+            bru.setVar(key, "");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.token
+      operator: matches
+      value: "^c_[A-Za-z0-9_-]{43}$"
+    - expression: res.body.session_id
+      operator: isString
+    - expression: res.body.expires_at
+      operator: isString
+docs: |-
+  Verify the customer first. Leave CUSTOMER_MFA_CODE empty without MFA.
+  With MFA, supply a fresh TOTP or unused recovery code for every authentication.
+  Successful login clears customer resource selection, not staff state.

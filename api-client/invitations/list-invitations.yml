@@ -1,0 +1,26 @@
+info:
+  name: list-invitations
+  type: http
+  seq: 1
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/invitations"
+  auth: inherit
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const invitation = (res.body.items || []).find(item => item.state === "pending");
+          bru.setVar("invitationId", invitation ? invitation.id : "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: |-
+  Requires owner/admin invite capability. Selects the first pending invitation
+  on this page, never a cancelled/accepted one. Optional pagination: limit/cursor.

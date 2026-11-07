@@ -1,0 +1,36 @@
+info:
+  name: customer-confirm-mfa
+  type: http
+  seq: 9
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/me/mfa/confirm"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "code": "{{customerMfaCode}}" }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!/^\d{6}$/.test(bru.interpolate("{{customerMfaCode}}"))) {
+          throw new Error("Set CUSTOMER_MFA_CODE to the six-digit TOTP for the pending MFA enrollment.");
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("accessToken", "");
+          bru.setVar("sessionId", "");
+          bru.setVar("profileVersion", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.recovery_codes
+      operator: isArray
+docs: |-
+  Requires pending enrollment and recent authentication. Save recovery codes
+  securely from this response. All sessions are revoked; log in with a NEW
+  TOTP step or unused recovery code, not the code consumed by confirmation.

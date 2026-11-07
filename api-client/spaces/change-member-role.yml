@@ -1,0 +1,25 @@
+info:
+  name: change-member-role
+  type: http
+  seq: 7
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/members/{{memberId}}/role"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      { "role": "reader", "confirm": true }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Requires recent authentication and sufficient owner/admin authority.
+  Cannot change the owner's role; admins cannot manage other admins.

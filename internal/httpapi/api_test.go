@@ -29,6 +29,9 @@ func TestTechnicalContract(t *testing.T) {
 	}{
 		{name: "live", method: "GET", path: "/v1/health/live", want: 200},
 		{name: "ready", method: "GET", path: "/v1/health/ready", want: 200},
+		{name: "OpenAPI remains available", method: "GET", path: "/v1/openapi.json", want: 200},
+		{name: "schema endpoint disabled", method: "GET", path: "/schemas/HealthBody.json", want: 404, code: "not_found"},
+		{name: "root schema endpoint disabled", method: "GET", path: "/HealthBody.json", want: 404, code: "not_found"},
 		{name: "unready does not expose DB error", method: "GET", path: "/v1/health/ready", dbError: true, want: 503, code: "not_ready"},
 		{name: "unknown query sanitized", method: "GET", path: "/v1/health/live?password=private-secret", want: 422, code: "invalid_request"},
 		{name: "not found", method: "GET", path: "/private-secret", want: 404, code: "not_found"},
@@ -53,6 +56,14 @@ func TestTechnicalContract(t *testing.T) {
 			api.Handler.ServeHTTP(rec, req)
 			if rec.Code != tc.want {
 				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), `"$schema"`) {
+				t.Fatal("response contains schema discovery metadata")
+			}
+			for _, link := range rec.Header().Values("Link") {
+				if strings.Contains(strings.ToLower(link), "describedby") {
+					t.Fatalf("response contains schema discovery link: %s", link)
+				}
 			}
 			if tc.code != "" {
 				var p httpapi.Problem

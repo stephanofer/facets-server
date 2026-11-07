@@ -1,0 +1,17 @@
+info:
+  name: liveness
+  type: http
+  seq: 1
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/health/live"
+  # No auth: the canonical YAML representation of Bruno's None mode is an absent auth field.
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: ok

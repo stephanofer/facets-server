@@ -50,6 +50,7 @@
 
 ## Referencias
 
+- **Bruno:** antes de tocar `api-client/`, consulta `C:\Users\vendi\Documents\software-workspace\facets\bruno-docs`. Todo endpoint nuevo, modificado o eliminado debe reflejarse correctamente en su request y scripts/aserciones, listo para probar en Bruno; verifica con `api-client-check` y usa `api-client-smoke` para el recorrido smoke (requiere CLI y servidor local).
 - **Documentación de Huma:** consulta los Markdown de `docs/huma/` antes de implementar, modificar o revisar código que dependa de Huma. Lee las secciones pertinentes a la tarea; no adivines APIs, validaciones, contratos ni comportamientos.
 - **Código fuente de Huma:** disponible en `C:\Users\vendi\Documents\software-workspace\facets\huma`. Si necesitas confirmar cómo está implementado un comportamiento o la documentación no basta, revisa el código y sus pruebas relevantes. Comprueba que correspondan a la versión usada en `go.mod`; ante diferencias, verifica la implementación de esa versión. Es material de consulta, no un destino de cambios de este proyecto.
 - **Sure como inspiración de backend:** este proyecto se inspira en Sure, cuyo código local está en `inspiration/sure/`, pero tiene un alcance más específico y busca evitar complejidad innecesaria. Al diseñar o implementar funcionalidades de nuestro alcance, consulta las soluciones equivalentes de Sure: lógica de negocio, límites de autorización, modelo de datos, migraciones y pruebas. Busca aprovechar problemas ya resueltos y comprender sus decisiones para anticipar casos límite y evitar errores de diseño, no reproducir su producto completo.
@@ -70,6 +71,8 @@ Usa `./scripts/dev.ps1 <tarea>` en PowerShell. El script selecciona Go desde `en
 | `migrate` | Aplica migraciones locales con el rol migrador. Tras agregar migraciones; no se aplican al arrancar el servidor. |
 | `generate` | Regenera sqlc y `docs/openapi.json`. Tras cambiar consultas, esquemas o contratos API. |
 | `openapi` | Regenera solo `docs/openapi.json`. Tras cambiar el contrato API. |
+| `api-client-check` | Comprueba sin CLI ni servidor la sincronización de Bruno con OpenAPI; también se ejecuta en `check` y `validate`. |
+| `api-client-smoke` | Ejecuta el smoke secuencial de Bruno contra el servidor local; requiere CLI y cliente configurado/verificado. Opcional, fuera de `validate`. |
 | `format` | Formatea archivos Go con `gofmt`. Después de un conjunto de cambios Go. |
 | `check` | Comprueba formato y ejecuta pruebas sin etiqueta de integración, permitiendo caché. Para iterar rápido. |
 | `test` | Ejecuta pruebas sin etiqueta de integración ni caché de resultados; límite de 2 min por paquete. |

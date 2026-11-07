@@ -1,0 +1,32 @@
+info:
+  name: preview-invitation
+  type: http
+  seq: 5
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/invitations/preview"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "token": "{{invitationCode}}" }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("spaceId", res.body.space_id);
+          for (const key of ["spaceVersion", "membershipId", "memberId", "invitationId"]) bru.setVar(key, "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.space_id
+      operator: isString
+    - expression: res.body.grants_space_shared_accounts
+      operator: isBoolean
+docs: |-
+  Authenticated recipient only, not the inviter. Register/verify the invitee,
+  sign in as that customer, and set INVITATION_CODE from their worker mail.
+  Preview selects the invited space, but membership exists only after acceptance.

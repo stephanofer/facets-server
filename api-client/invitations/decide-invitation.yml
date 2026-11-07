@@ -1,0 +1,38 @@
+info:
+  name: decide-invitation
+  type: http
+  seq: 6
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/invitations/decision"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "token": "{{invitationCode}}",
+        "accept": true,
+        "acknowledge_shared_accounts": true
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200 && req.getBody().accept) {
+          bru.setVar("membershipId", res.body.id);
+          bru.setVar("spaceVersion", "");
+          bru.setVar("memberId", "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+docs: |-
+  Authenticated recipient only. Run preview-invitation first to select the invited
+  space. Accepting returns a membership ID; declining returns the invitation ID.
+  Acceptance requires explicit shared-account acknowledgement and member capacity.

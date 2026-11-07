@@ -1,0 +1,33 @@
+info:
+  name: staff-revoke-session
+  type: http
+  seq: 9
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/internal/me/sessions/revoke"
+  auth: inherit
+  body:
+    type: json
+    data: |-
+      { "id": "{{staffSessionId}}", "all": false }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const body = req.getBody();
+          if (body.all || body.id === bru.getVar("staffSessionId") || !body.id) {
+            bru.setVar("staffToken", "");
+            bru.setVar("staffSessionId", "");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.status
+      operator: eq
+      value: acknowledged
+docs: |-
+  Default: revoke the current staff session captured at login. Revoking another
+  session or all sessions requires recent authentication.
