@@ -67,12 +67,17 @@ func (s *Service) createSpace(ctx context.Context, tx pgx.Tx, p accessdb.Princip
 		ValidFrom: instant(now), ValidUntil: instant(now.Add(s.policy.DevelopmentValidity)), BillingMember: member}); err != nil {
 		return "", err
 	}
-	for _, capability := range []string{"read", "manage", "invite", "members"} {
+	for _, capability := range []string{"read", "manage", "invite", "members", "finance.write"} {
 		ceiling, used := int64(1), int64(0)
 		if capability == "members" {
 			ceiling, used = s.policy.DevelopmentMembers, 1
 		}
 		if err := q.InsertCapability(ctx, accessdb.InsertCapabilityParams{SpaceID: id, Capability: capability, Ceiling: ceiling, Used: used}); err != nil {
+			return "", err
+		}
+	}
+	if s.initializeSpace != nil {
+		if err := s.initializeSpace(ctx, tx, id); err != nil {
 			return "", err
 		}
 	}
@@ -146,6 +151,7 @@ type SpaceCommand struct {
 	Authorization, SpaceID, Key, Kind, Capability string
 	Content                                       any
 	replay                                        func(context.Context, pgx.Tx, Actor, accessdb.Membership) error
+	authorize                                     func(context.Context, pgx.Tx, Actor, accessdb.Membership, string) error
 }
 
 func (s *Service) spaceCommand(ctx context.Context, c SpaceCommand, apply func(context.Context, pgx.Tx, Actor, accessdb.Membership) (string, error)) (string, error) {
@@ -173,6 +179,11 @@ func (s *Service) spaceCommand(ctx context.Context, c SpaceCommand, apply func(c
 			member, err = s.AuthorizeSpace(ctx, tx, actor, c.SpaceID, c.Capability)
 			if err != nil {
 				return err
+			}
+			if c.authorize != nil {
+				if err := c.authorize(ctx, tx, actor, member, ref); err != nil {
+					return err
+				}
 			}
 			if ref != "" && c.replay != nil {
 				return c.replay(ctx, tx, actor, member)

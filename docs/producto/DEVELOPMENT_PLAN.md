@@ -1,6 +1,6 @@
 # Plan de desarrollo por bloques
 
-**Estado:** bloques 1–3 cerrados y verificados; bloques 4–14 pendientes.  
+**Estado:** bloques 1–4 cerrados y verificados; bloques 5–14 pendientes.  
 **Referencias:** [producto](PRODUCT_DESIGN.md), [diseño técnico](TECHNICAL_DESIGN.md) e [instrucciones del proyecto](../../AGENTS.md).
 
 ## 1. Propósito y alcance
@@ -54,7 +54,7 @@ Todos los bloques parten como **pendientes**. Se marcan únicamente cuando super
 | [x] | 1. Preparación del entorno y del proyecto | Inicio reproducible del desarrollo. |
 | [x] | 2. Base de ejecución y garantías compartidas | HTTP, persistencia, trabajos y fundamentos probados. |
 | [x] | 3. Identidad, espacios y control de acceso | Usuarios reales y contexto autorizado multiespacio. |
-| [ ] | 4. Cuentas y organización financiera | Posiciones, referencias iniciales, permisos y catálogos. |
+| [x] | 4. Cuentas y organización financiera | Posiciones, referencias iniciales, permisos y catálogos. |
 | [ ] | 5. Operaciones y consistencia financiera | Registro cotidiano, correcciones y reconciliación. |
 | [ ] | 6. Vencimientos, aplicaciones y recurrentes | Motor común de obligaciones y agenda. |
 | [ ] | 7. Deudas, préstamos y derechos de cobro | Acuerdos y seguimiento completo de pagos y cobros. |
@@ -131,6 +131,8 @@ El perfil no comercial aprobado queda persistido por espacio con capacidades, co
 
 ## Bloque 4. Cuentas y organización financiera
 
+**Decisión acordada (7 de noviembre de 2026):** administración exclusiva del responsable y recuperación explícita de su propia identidad, con reautenticación y sin restaurar concesiones de membresías terminadas. Contratos, límites y correspondencia de requisitos con pruebas en [Financial organization API](../FINANCIAL_ORGANIZATION.md).
+
 **Objetivo:** establecer dónde se registra el dinero y cómo se organiza, antes de introducir movimientos cotidianos.
 
 **Prerrequisitos clave:** identidad, espacios, permisos y tipos monetarios disponibles.
@@ -145,6 +147,12 @@ El perfil no comercial aprobado queda persistido por espacio con capacidades, co
 **Cierre:** referencias iniciales no producen ingreso, desconocido no es cero y los accesos se respetan en listas/detalles. Retirar al responsable de una cuenta privada conserva e inmoviliza sin exponer ni trasladar datos. Las cuentas están listas para recibir operaciones, sin anticipar acuerdos o estados de tarjeta.
 
 **Referencias:** producto 6.5/6.7, 8, 11, 17 y 19.2; técnico 5.2, 6, 9–10 y 13.
+
+**Cierre verificado (7 de noviembre de 2026):** `./scripts/dev.ps1 validate` completó formato, pruebas unitarias y de contrato, módulos sin diferencias, generación sqlc/OpenAPI reproducible, validación de migraciones, integración PostgreSQL/HTTP, vet/lint sin avisos, detector de carreras en Linux, govulncheck y compilación/ejecución del artefacto `0.4.0`. Las migraciones 4–5 amplían la base sin modificar las publicadas 1–3; la regresión verifica instalación desde base vacía y actualización conservando datos anteriores. Se provisionaron las migraciones y permisos locales sin borrar datos.
+
+Se verificaron referencias iniciales exactas, negativas, estimadas y desconocidas sin convertirlas en ingresos ni ceros; listas paginadas autorizadas en SQL, separación de consulta/operación/administración, inmovilización sin exposición al salir el responsable, reincorporación sin accesos automáticos, recuperación explícita, transferencia sin cambios de facturación, capacidad persistida y revocación de artefactos. Se comprobaron idempotencia concurrente, versiones, rollback sin registros parciales, respuesta HTTP perdida después del commit, recuperación tras sustituir el servicio y autorización en curso frente a revocación. Categorías de dos niveles, datos iniciales con identidad estable, archivo/consolidación conservando referencias y revisiones, tasas manuales inmutables y correcciones trazables, conversión incompleta sin tasa y cambio de presentación sin modificar posiciones quedaron cubiertos por la API y pruebas.
+
+La colección de Bruno contiene 68 requests sincronizados con OpenAPI; `api-client-smoke` con CLI 4.3.0 y servidor local pasó 14 solicitudes y 38 aserciones. El recorrido detectó y corrigió la ausencia de parámetros query en las URL de las nuevas listas; el verificador incluye su regresión. Una copia limpia del árbol preparado para Git compiló, ejecutó la versión y pasó las pruebas de finanzas, contrato y colección sin archivos locales ignorados. La validación final se ejecutó sin el servidor del smoke, cuyo puerto de diagnóstico interfería con una prueba de ejecución; esta prueba también pasó aisladamente al liberar el puerto. Govulncheck informó cero vulnerabilidades alcanzables y cero en paquetes importados, con un aviso no alcanzable en módulos requeridos. No se inició el bloque 5 ni se implementaron movimientos, acuerdos, estados de tarjeta o clientes.
 
 ## Bloque 5. Operaciones y consistencia financiera
 

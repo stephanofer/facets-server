@@ -34,6 +34,7 @@ import (
 	"github.com/stephanofer/facets-server/internal/app"
 	"github.com/stephanofer/facets-server/internal/database"
 	"github.com/stephanofer/facets-server/internal/execution"
+	"github.com/stephanofer/facets-server/internal/finance"
 	"github.com/stephanofer/facets-server/internal/httpapi"
 	"github.com/stephanofer/facets-server/internal/mail"
 	"github.com/stephanofer/facets-server/migrations"
@@ -78,7 +79,7 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	// Exercise upgrade from the published block-2 schema with existing receipts.
-	// The execution suite separately exercises an empty database through version 3.
+	// The execution suite separately exercises an empty database through the current version.
 	files, err := migrations.Files()
 	if err != nil {
 		t.Fatal(err)
@@ -135,6 +136,10 @@ func setup(t *testing.T) *fixture {
  REVOKE CREATE ON SCHEMA public FROM PUBLIC;
  GRANT USAGE ON SCHEMA public TO access_app;
  GRANT SELECT,INSERT,UPDATE ON action_receipts,jobs,principals,recovery_codes,sessions,identity_tokens,access_limits,spaces,memberships,space_access,space_capabilities,invitations,access_deliveries TO access_app;
+ GRANT SELECT,INSERT,UPDATE ON financial_accounts,financial_catalog TO access_app;
+ GRANT SELECT,INSERT,DELETE ON account_grants TO access_app;
+ GRANT SELECT,INSERT ON catalog_merges,exchange_references TO access_app;
+ GRANT SELECT,INSERT ON account_configuration_history,account_grant_history,catalog_configuration_history TO access_app;
  GRANT SELECT,INSERT ON technical_audit TO access_app;
  GRANT USAGE ON SEQUENCE technical_audit_id_seq TO access_app;
  GRANT SELECT ON goose_db_version TO access_app`)
@@ -168,7 +173,7 @@ func setup(t *testing.T) *fixture {
 	p.IdentityAttempts, p.OriginAttempts = 100, 10000
 	p.Password.Concurrency = 8
 	f := &fixture{db: db, policy: p, store: &execution.Store{DB: runtimeDB, QueueLimit: 1000}, messages: map[string][]string{}}
-	f.service, err = access.New(f.store, p)
+	f.service, err = access.New(f.store, p, finance.SeedDefaults)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,6 +183,7 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	access.RegisterHTTP(api.Huma, f.service, log)
+	finance.RegisterHTTP(api.Huma, finance.New(f.service), log)
 	f.server = httptest.NewServer(api.Handler)
 	t.Cleanup(f.server.Close)
 	ses := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +232,7 @@ func setup(t *testing.T) *fixture {
 
 func (f *fixture) reset(t *testing.T) {
 	t.Helper()
-	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
+	_, err := f.db.Pool.Exec(t.Context(), `TRUNCATE account_grant_history,account_configuration_history,catalog_configuration_history,account_grants,exchange_references,catalog_merges,financial_accounts,financial_catalog,access_deliveries,invitations,space_capabilities,space_access,memberships,spaces,access_limits,identity_tokens,sessions,recovery_codes,principals,jobs,technical_audit,action_receipts RESTART IDENTITY`)
 	if err != nil {
 		t.Fatal(err)
 	}

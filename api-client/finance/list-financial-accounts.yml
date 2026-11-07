@@ -1,0 +1,21 @@
+info:
+  name: list-financial-accounts
+  type: http
+  seq: 2
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts?limit=50"
+  auth: inherit
+  params:
+    - name: limit
+      value: "50"
+      type: query
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: Only currently authorized accounts are paginated. Archived and immobilized accounts retain their positions.

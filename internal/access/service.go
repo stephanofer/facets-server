@@ -43,12 +43,13 @@ func DefaultPolicy(key []byte) Policy {
 }
 
 type Service struct {
-	store  *execution.Store
-	policy Policy
-	crypto *cryptography
+	store           *execution.Store
+	policy          Policy
+	crypto          *cryptography
+	initializeSpace func(context.Context, pgx.Tx, string) error
 }
 
-func New(store *execution.Store, p Policy) (*Service, error) {
+func New(store *execution.Store, p Policy, initializeSpace ...func(context.Context, pgx.Tx, string) error) (*Service, error) {
 	if store == nil || store.DB == nil {
 		return nil, ErrInvalid
 	}
@@ -60,7 +61,14 @@ func New(store *execution.Store, p Policy) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{store: store, policy: p, crypto: c}, nil
+	if len(initializeSpace) > 1 {
+		return nil, ErrInvalid
+	}
+	s := &Service{store: store, policy: p, crypto: c}
+	if len(initializeSpace) == 1 {
+		s.initializeSpace = initializeSpace[0]
+	}
+	return s, nil
 }
 
 func (p Policy) ValidateRuntime() error {

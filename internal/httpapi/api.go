@@ -92,7 +92,7 @@ func New(o Options) (*API, error) {
 		return nil, errors.New("invalid HTTP concurrency")
 	}
 	mux := http.NewServeMux()
-	cfg := huma.DefaultConfig("Facets server", "0.3.0")
+	cfg := huma.DefaultConfig("Facets server", "0.4.0")
 	cfg.CreateHooks = nil // Disable schema discovery metadata, not validation or OpenAPI.
 	cfg.Info.Description = "Backend for the Facets finance tracker, managing customer accounts, secure access, and shared financial spaces."
 	cfg.Servers = []*huma.Server{{URL: "http://127.0.0.1:8080", Description: "Local development server"}}
@@ -103,6 +103,7 @@ func New(o Options) (*API, error) {
 		{Name: "Spaces", Description: "Shared spaces, capabilities, membership, ownership, and billing responsibility."},
 		{Name: "Invitations", Description: "Space invitations and recipient previews and decisions."},
 		{Name: "Internal", Description: "Staff authentication, sessions, and account security."},
+		{Name: "Finance", Description: "Authorized positions, financial catalogs, and manual exchange references."},
 	}
 	cfg.OpenAPIPath = "/v1/openapi"
 	cfg.DocsPath = ""

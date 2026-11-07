@@ -4,6 +4,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -92,7 +93,12 @@ func checkRequest(document, operation, pathItem object, method, path, file strin
 		return fmt.Errorf("request folder must match the operation tag")
 	}
 	// Parameter names in Bruno may be camelCase, but every segment must remain a variable.
-	actualPath := regexp.MustCompile(`\{\{[^{}]+\}\}`).ReplaceAllString(strings.TrimPrefix(r.HTTP.URL, "{{baseUrl}}"), "{}")
+	requestPath, query, _ := strings.Cut(strings.TrimPrefix(r.HTTP.URL, "{{baseUrl}}"), "?")
+	queryValues, err := url.ParseQuery(query)
+	if err != nil {
+		return fmt.Errorf("invalid request query: %w", err)
+	}
+	actualPath := regexp.MustCompile(`\{\{[^{}]+\}\}`).ReplaceAllString(requestPath, "{}")
 	expectedPath := regexp.MustCompile(`\{[^{}]+\}`).ReplaceAllString(path, "{}")
 	if r.HTTP.Method != strings.ToUpper(method) || !strings.HasPrefix(r.HTTP.URL, "{{baseUrl}}/") || actualPath != expectedPath {
 		return fmt.Errorf("expected %s {{baseUrl}}%s", strings.ToUpper(method), path)
@@ -136,6 +142,9 @@ func checkRequest(document, operation, pathItem object, method, path, file strin
 			return p["in"] == "query" && p["name"] == query.Name
 		}) {
 			return fmt.Errorf("undocumented query parameter %q", query.Name)
+		}
+		if queryValues.Get(query.Name) != query.Value {
+			return fmt.Errorf("query parameter %q must also appear with the same value in http.url", query.Name)
 		}
 	}
 	body := schemaObject(document, operation["requestBody"])

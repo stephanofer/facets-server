@@ -84,6 +84,8 @@ func TestCollectionRejectsDrift(t *testing.T) {
 		{"protected auth", "api-client/spaces/edit-space.yml", "auth: inherit", "auth: none", "protected request"},
 		{"header", "api-client/spaces/edit-space.yml", "name: Idempotency-Key", "name: Wrong", "missing required header"},
 		{"query", "api-client/spaces/list-spaces.yml", "method: GET", "method: GET\n  params:\n    - name: wrong\n      value: example\n      type: query", "undocumented query parameter"},
+		{"query absent from URL", "api-client/finance/list-catalog-entries.yml", "/catalog?kind=category", "/catalog", "must also appear"},
+		{"query value differs from URL", "api-client/finance/list-catalog-entries.yml", "value: category", "value: tag", "must also appear"},
 		{"body field", "api-client/spaces/edit-space.yml", `"version": {{spaceVersion}}`, `"wrong": {{spaceVersion}}`, "missing required field version"},
 		{"null body", "api-client/spaces/edit-space.yml", `"version": {{spaceVersion}}`, `"version": null`, "must be a number"},
 		{"enum", "api-client/spaces/edit-space.yml", `"purpose": "family"`, `"purpose": "unknown"`, "enum value"},

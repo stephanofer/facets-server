@@ -1,6 +1,6 @@
 # Facets API client
 
-Curated OpenCollection YAML collection: **48 requests**, one filename per
+Curated OpenCollection YAML collection: **68 requests**, one filename per
 `operationId` in [`docs/openapi.json`](../docs/openapi.json). Use a current Bruno
 Desktop with OpenCollection YAML support; CLI checks use **4.3.0**. Scripts use
 Safe Mode; no npm packages, filesystem access, or Developer Mode are needed by
@@ -110,8 +110,8 @@ server running, and from the repository root run:
 ./scripts/dev.ps1 api-client-smoke
 ```
 
-The 11 tagged requests cover health, customer login/profile/sessions, spaces,
-capabilities, members, invitations, and departure preview. They do not modify
+The 14 tagged requests cover health, customer login/profile/sessions, spaces,
+capabilities, members, invitations, departure preview and financial lists. They do not modify
 financial resources; login does create a session. Smoke expects the selected
 customer to have owner/admin invite access to the first returned space. Do not
 use parallel execution: these requests share runtime state.
@@ -128,7 +128,7 @@ the composed HTTP/worker mail flow (`tests/access/`, especially
 requests, shared state, JavaScript and assertions; it is not another business-rule
 test suite. Repeated runs create login sessions and can hit normal rate limits.
 
-**Do not run all 48 requests as one scenario.** They include mutually exclusive
+**Do not run all requests as one scenario.** They include mutually exclusive
 flows, password changes, logout, cancellation, MFA enrollment, and staff actions.
 Use individual requests or an intentionally selected sequence on synthetic data.
 

@@ -1,0 +1,20 @@
+info:
+  name: initialize-financial-catalog
+  type: http
+  seq: 10
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/catalog/defaults"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: '{"confirm":true}'
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+docs: Owner/admin only. Existing spaces can initialize missing categories; new spaces initialize atomically at creation. Does not overwrite edited or archived defaults.

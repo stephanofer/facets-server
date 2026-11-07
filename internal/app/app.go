@@ -20,6 +20,7 @@ import (
 	"github.com/stephanofer/facets-server/internal/config"
 	"github.com/stephanofer/facets-server/internal/database"
 	"github.com/stephanofer/facets-server/internal/execution"
+	"github.com/stephanofer/facets-server/internal/finance"
 	"github.com/stephanofer/facets-server/internal/httpapi"
 	"github.com/stephanofer/facets-server/internal/mail"
 	"github.com/stephanofer/facets-server/internal/telemetry"
@@ -69,6 +70,7 @@ func OpenAPI(w io.Writer) error {
 		return err
 	}
 	access.RegisterHTTP(api.Huma, nil, slog.New(slog.DiscardHandler))
+	finance.RegisterHTTP(api.Huma, nil, slog.New(slog.DiscardHandler))
 	return json.MarshalWrite(w, api.Schema, json.Deterministic(true))
 }
 
@@ -167,11 +169,12 @@ func serve(ctx context.Context, c config.Config, db *database.DB, signals *telem
 	if err != nil {
 		return err
 	}
-	identities, err := access.New(&execution.Store{DB: db, QueueLimit: c.QueueLimit}, c.Access)
+	identities, err := access.New(&execution.Store{DB: db, QueueLimit: c.QueueLimit}, c.Access, finance.SeedDefaults)
 	if err != nil {
 		return err
 	}
 	access.RegisterHTTP(api.Huma, identities, log)
+	finance.RegisterHTTP(api.Huma, finance.New(identities), log)
 	listener, err := net.Listen("tcp", c.Address)
 	if err != nil {
 		return errors.New("HTTP listener unavailable")
@@ -276,4 +279,4 @@ func runWorker(ctx context.Context, c config.Config, w *execution.Worker, db *da
 	return errors.Join(err, closeErr)
 }
 
-func Version(w io.Writer) error { _, err := fmt.Fprintln(w, "facets-server 0.3.0"); return err }
+func Version(w io.Writer) error { _, err := fmt.Fprintln(w, "facets-server 0.4.0"); return err }

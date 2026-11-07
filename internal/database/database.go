@@ -84,7 +84,7 @@ func (d *DB) Ready(ctx context.Context) error {
 	if err := d.Pool.QueryRow(ctx, "SELECT COALESCE(max(version_id),0) FROM goose_db_version WHERE is_applied").Scan(&version); err != nil {
 		return oops.In("database.ready").Code("migrations_unavailable").Wrap(err)
 	}
-	if version != 3 {
+	if version != 5 {
 		return oops.In("database.ready").Code("migration_version_mismatch").Errorf("database migration version mismatch")
 	}
 	return nil
@@ -98,7 +98,9 @@ func (d *DB) CheckRuntimeRole(ctx context.Context) error {
 	 has_schema_privilege(current_user,'public','CREATE') OR
  EXISTS (SELECT 1 FROM pg_class c WHERE c.relname IN ('jobs','technical_audit','action_receipts',
  'principals','sessions','recovery_codes','identity_tokens','access_limits','spaces','memberships',
- 'space_access','space_capabilities','invitations','access_deliveries') AND pg_has_role(current_user,c.relowner,'USAGE')) OR
+ 'space_access','space_capabilities','invitations','access_deliveries','financial_accounts','account_grants',
+ 'financial_catalog','catalog_merges','exchange_references','account_configuration_history',
+ 'account_grant_history','catalog_configuration_history') AND pg_has_role(current_user,c.relowner,'USAGE')) OR
  has_table_privilege(current_user,'technical_audit','UPDATE,DELETE,TRUNCATE')
  FROM pg_roles r WHERE r.rolname=current_user`).Scan(&unsafe)
 	if err != nil {

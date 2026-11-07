@@ -1,0 +1,21 @@
+info:
+  name: list-catalog-entries
+  type: http
+  seq: 12
+  tags: [smoke]
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/catalog?kind=category"
+  auth: inherit
+  params:
+    - name: kind
+      value: category
+      type: query
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+docs: Catalog metadata belongs to the space. Archived and merged identities remain available; merged_into identifies the canonical target without losing original references.

@@ -78,7 +78,7 @@ function Get-ValidationFingerprint {
 
 function Get-GeneratedSnapshot {
     $snapshot = @{}
-    foreach ($folder in @('tests/environment/fixturedb', 'internal/execution/executiondb', 'internal/access/accessdb')) {
+    foreach ($folder in @('tests/environment/fixturedb', 'internal/execution/executiondb', 'internal/access/accessdb', 'internal/finance/financedb')) {
       Get-ChildItem $folder -Filter '*.go' -File | ForEach-Object {
         $snapshot[$_.FullName] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
       }
@@ -179,6 +179,11 @@ GRANT USAGE ON SCHEMA public TO facets_app;
     $grants = @'
 GRANT SELECT,INSERT,UPDATE ON action_receipts,jobs TO facets_app;
 GRANT SELECT,INSERT,UPDATE ON principals,recovery_codes,sessions,identity_tokens,access_limits,spaces,memberships,space_access,space_capabilities,invitations,access_deliveries TO facets_app;
+GRANT SELECT,INSERT,UPDATE ON financial_accounts TO facets_app;
+GRANT SELECT,INSERT,DELETE ON account_grants TO facets_app;
+GRANT SELECT,INSERT,UPDATE ON financial_catalog TO facets_app;
+GRANT SELECT,INSERT ON catalog_merges,exchange_references TO facets_app;
+GRANT SELECT,INSERT ON account_configuration_history,account_grant_history,catalog_configuration_history TO facets_app;
 GRANT SELECT,INSERT ON technical_audit TO facets_app;
 REVOKE UPDATE,DELETE,TRUNCATE ON technical_audit FROM facets_app;
 GRANT USAGE ON SEQUENCE technical_audit_id_seq TO facets_app;

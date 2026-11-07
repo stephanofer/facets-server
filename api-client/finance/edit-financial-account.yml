@@ -1,0 +1,25 @@
+info:
+  name: edit-financial-account
+  type: http
+  seq: 4
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {"name":"Archived synthetic bank account","state":"archived","version":{{accountVersion}}}
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("accountVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+docs: Responsible member only. Replaces descriptive configuration and state; omitted institution, last_digits and counterparty_id are cleared. Does not edit currency, opening reference or current balance. Archive requires recent authentication.

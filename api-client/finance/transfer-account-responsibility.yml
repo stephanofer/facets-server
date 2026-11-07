@@ -1,0 +1,25 @@
+info:
+  name: transfer-account-responsibility
+  type: http
+  seq: 7
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/responsibility"
+  auth: inherit
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {"version":{{accountVersion}},"confirm":true,"member_id":"{{memberId}}"}
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar("accountVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+docs: Requires recent authentication and current account responsibility. Target must already have access and must not be a reader. Does not transfer billing or change financial amounts.

@@ -131,6 +131,11 @@ func operationTag(path string) string {
 	}
 }
 func (r *routes) problem(ctx context.Context, err error) error {
+	return HTTPProblem(ctx, r.log, err)
+}
+
+// HTTPProblem translates access failures for modules sharing the identity boundary.
+func HTTPProblem(ctx context.Context, log *slog.Logger, err error) error {
 	var status int
 	var code string
 	switch {
@@ -159,7 +164,7 @@ func (r *routes) problem(ctx context.Context, err error) error {
 		}
 	}
 	if status >= 500 {
-		telemetry.LogError(ctx, r.log, "access request failed", err)
+		telemetry.LogError(ctx, log, "request failed", err)
 	}
 	return &httpapi.Problem{Type: "about:blank", Title: http.StatusText(status), Status: status, Code: code, RequestID: httpapi.RequestID(ctx)}
 }

@@ -68,7 +68,7 @@ func TestOpenAPI(t *testing.T) {
 	if len(doc.Servers) != 1 || doc.Servers[0].URL != "http://127.0.0.1:8080" {
 		t.Errorf("unexpected servers: %+v", doc.Servers)
 	}
-	wantTags := []string{"Health", "Auth", "Account", "Spaces", "Invitations", "Internal"}
+	wantTags := []string{"Health", "Auth", "Account", "Spaces", "Invitations", "Internal", "Finance"}
 	var tags []string
 	for _, tag := range doc.Tags {
 		tags = append(tags, tag.Name)
@@ -141,9 +141,32 @@ func TestOpenAPI(t *testing.T) {
 			"post /v1/internal/me/mfa/confirm":        "staff-confirm-mfa",
 			"post /v1/internal/me/mfa/recovery-codes": "staff-regenerate-recovery",
 		},
+		"Finance": {
+			"get /v1/spaces/{space_id}/accounts/proposal":                     "propose-account-visibility",
+			"post /v1/spaces/{space_id}/accounts":                             "create-financial-account",
+			"get /v1/spaces/{space_id}/accounts":                              "list-financial-accounts",
+			"get /v1/spaces/{space_id}/accounts/{account_id}":                 "get-financial-account",
+			"put /v1/spaces/{space_id}/accounts/{account_id}":                 "edit-financial-account",
+			"get /v1/spaces/{space_id}/accounts/{account_id}/sharing":         "get-account-sharing",
+			"put /v1/spaces/{space_id}/accounts/{account_id}/sharing":         "share-financial-account",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/responsibility": "transfer-account-responsibility",
+			"get /v1/spaces/{space_id}/accounts/recoverable":                  "list-recoverable-accounts",
+			"post /v1/spaces/{space_id}/accounts/{account_id}/recovery":       "recover-financial-account",
+			"post /v1/spaces/{space_id}/catalog/defaults":                     "initialize-financial-catalog",
+			"post /v1/spaces/{space_id}/catalog":                              "create-catalog-entry",
+			"get /v1/spaces/{space_id}/catalog":                               "list-catalog-entries",
+			"get /v1/spaces/{space_id}/catalog/{entry_id}":                    "get-catalog-entry",
+			"put /v1/spaces/{space_id}/catalog/{entry_id}":                    "edit-catalog-entry",
+			"post /v1/spaces/{space_id}/catalog/{entry_id}/merge":             "merge-catalog-entries",
+			"post /v1/spaces/{space_id}/exchange-references":                  "create-exchange-reference",
+			"get /v1/spaces/{space_id}/exchange-references":                   "list-exchange-references",
+			"get /v1/spaces/{space_id}/exchange-references/{entry_id}":        "get-exchange-reference",
+			"post /v1/spaces/{space_id}/exchange-conversions":                 "convert-informative-amount",
+		},
 	}
 	public := []string{"register", "request-verification", "verify-email", "request-recovery", "reset-password", "customer-login", "staff-login", "liveness", "readiness"}
 	seen := make(map[string]bool)
+	pathVariable := regexp.MustCompile(`\{([^}]+)\}`)
 	for path, methods := range doc.Paths {
 		for method, op := range methods {
 			t.Run(method+" "+path, func(t *testing.T) {
@@ -151,6 +174,17 @@ func TestOpenAPI(t *testing.T) {
 					t.Errorf("missing or duplicate operationId %q", op.OperationID)
 				}
 				seen[op.OperationID] = true
+				for _, match := range pathVariable.FindAllStringSubmatch(path, -1) {
+					found := false
+					for _, param := range op.Parameters {
+						if param.In == "path" && param.Name == match[1] {
+							found = true
+						}
+					}
+					if !found {
+						t.Errorf("missing path parameter %s", match[1])
+					}
+				}
 				if strings.TrimSpace(op.Summary) == "" || op.Summary == op.OperationID {
 					t.Errorf("summary must be readable and distinct from operationId: %q", op.Summary)
 				}
@@ -183,8 +217,8 @@ func TestOpenAPI(t *testing.T) {
 			})
 		}
 	}
-	if len(seen) != 48 {
-		t.Errorf("operation count = %d, want 48", len(seen))
+	if len(seen) != 68 {
+		t.Errorf("operation count = %d, want 68", len(seen))
 	}
 	if _, ok := doc.Paths["/v1/spaces/{space_id}/select"]; ok {
 		t.Error("removed space selection route remains documented")

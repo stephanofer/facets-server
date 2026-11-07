@@ -1,0 +1,32 @@
+info:
+  name: finance
+  type: folder
+  seq: 8
+request:
+  auth: inherit
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("spaceId")) {
+          const response = await bru.runRequest("spaces/list-spaces");
+          if (response.status !== 200 || !bru.getVar("spaceId")) throw new Error("Select an accessible space first.");
+        }
+        if (bru.getVar("financeSpaceId") !== bru.getVar("spaceId")) {
+          for (const key of ["accountId", "accountVersion", "catalogEntryId", "catalogVersion", "mergeTargetId", "mergeTargetVersion", "exchangeReferenceId", "recoveryAccountId", "recoveryAccountVersion"]) bru.setVar(key, "");
+          bru.setVar("financeSpaceId", bru.getVar("spaceId"));
+        }
+        const name = req.getName();
+        if (["get-financial-account", "edit-financial-account", "get-account-sharing", "share-financial-account", "transfer-account-responsibility"].includes(name) && !bru.getVar("accountId")) throw new Error("Run create-financial-account, or select accountId from list-financial-accounts.");
+        if (["edit-financial-account", "share-financial-account", "transfer-account-responsibility"].includes(name) && !bru.getVar("accountVersion")) {
+          const response = await bru.runRequest("finance/get-financial-account");
+          if (response.status !== 200) throw new Error("Cannot read current account version.");
+        }
+        if (["get-catalog-entry", "edit-catalog-entry", "merge-catalog-entries"].includes(name) && !bru.getVar("catalogEntryId")) throw new Error("Run create-catalog-entry, or select catalogEntryId from list-catalog-entries.");
+        if (["edit-catalog-entry", "merge-catalog-entries"].includes(name) && !bru.getVar("catalogVersion")) {
+          const response = await bru.runRequest("finance/get-catalog-entry");
+          if (response.status !== 200) throw new Error("Cannot read current catalog version.");
+        }
+        if (name === "merge-catalog-entries" && (!bru.getVar("mergeTargetId") || !bru.getVar("mergeTargetVersion"))) throw new Error("Explicitly select mergeTargetId and its current mergeTargetVersion. No target is guessed.");
+        if (name === "transfer-account-responsibility" && !bru.getVar("memberId")) throw new Error("Select a current authorized memberId first.");
+        if (name === "recover-financial-account" && (!bru.getVar("recoveryAccountId") || !bru.getVar("recoveryAccountVersion"))) throw new Error("Run list-recoverable-accounts and explicitly select recoveryAccountId and recoveryAccountVersion.");
+        if (["get-exchange-reference", "convert-informative-amount"].includes(name) && !bru.getVar("exchangeReferenceId")) throw new Error("Run create-exchange-reference, or select an exchangeReferenceId.");

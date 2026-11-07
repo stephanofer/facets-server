@@ -154,6 +154,8 @@ Para los integrantes autorizados se distinguen dos permisos:
 
 Cambiar accesos, transferir responsabilidad o eliminar una cuenta son acciones de administración, no consecuencias de poder registrar gastos. El responsable registrado de una cuenta no equivale necesariamente al titular legal de la cuenta bancaria.
 
+El responsable administra configuración, accesos, archivo y transferencia de responsabilidad. Compartir concede consulta u operación, no administración delegada. Los roles del espacio no sustituyen esa responsabilidad.
+
 Cuando un espacio tiene varios integrantes, las cuentas nuevas se proponen como compartidas, mostrando esa elección antes de confirmar y respetando la preferencia configurada. Puede restringirse su visibilidad. Cambiar esa preferencia o incorporar al primer invitado no convierte cuentas privadas existentes en compartidas.
 
 Una cuenta compartida con todo el espacio será accesible a quienes se incorporen, con el permiso que corresponda. La invitación debe explicar este efecto; las cuentas privadas no se comparten por la incorporación de un miembro.
@@ -190,7 +192,7 @@ Si no se puede completar la incorporación, se explica el motivo y cómo resolve
 
 Eliminar un espacio requiere resolver también su contratación y los compromisos comerciales pendientes, sin dejar cobros activos sin referencia ni borrar registros que deban conservarse conforme a las condiciones informadas.
 
-La salida con cuentas privadas bajo responsabilidad del integrante requiere un flujo específico de conservación y cierre. Este detalle sigue pendiente de definición; ninguna solución podrá exponer datos, borrar historia o trasladar posiciones silenciosamente.
+La salida con cuentas privadas bajo responsabilidad del integrante conserva e inmoviliza esas cuentas sin exponer datos, borrar historia ni trasladar posiciones. Las precisiones de conservación y regularización se definen en el apartado 10 del diseño técnico. Reincorporarse no restaura accesos: el antiguo responsable debe confirmar explícitamente la recuperación de su propia responsabilidad, con identidad y autenticación vigentes; no recupera otras concesiones terminadas.
 
 ### 6.8. Selector y contexto activo
 

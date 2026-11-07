@@ -14,6 +14,33 @@ func (s *Service) AuthenticateCustomer(ctx context.Context, tx pgx.Tx, authoriza
 	return s.authenticate(ctx, tx, authorization, "customer", false)
 }
 
+// RunSpaceCommand keeps identity, capabilities, resource authorization and the
+// action receipt in the same transaction. Resource checks run again on replay.
+func (s *Service) RunSpaceCommand(ctx context.Context, c SpaceCommand,
+	authorize func(context.Context, pgx.Tx, Actor, accessdb.Membership, string) error,
+	apply func(context.Context, pgx.Tx, Actor, accessdb.Membership) (string, error),
+) (string, error) {
+	c.authorize = authorize
+	return s.spaceCommand(ctx, c, apply)
+}
+
+// ReadSpace checks current identity and membership under the same space lock used
+// by revocations. Callers must apply resource predicates before pagination.
+func (s *Service) ReadSpace(ctx context.Context, authorization, spaceID string,
+	fn func(context.Context, pgx.Tx, Actor, accessdb.Membership) error,
+) error {
+	return s.withActor(ctx, authorization, "customer", false, func(ctx context.Context, tx pgx.Tx, a Actor) error {
+		m, err := s.AuthorizeSpace(ctx, tx, a, spaceID, "read")
+		if err != nil {
+			return err
+		}
+		return fn(ctx, tx, a, m)
+	})
+}
+
+// RequireRecent verifies the authenticated transaction participant, not a client timestamp.
+func (s *Service) RequireRecent(a Actor) error { return s.recent(a) }
+
 type ScopeSnapshot struct {
 	SpaceID, MembershipID string
 	Epoch                 int64

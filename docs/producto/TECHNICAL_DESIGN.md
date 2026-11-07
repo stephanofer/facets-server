@@ -295,6 +295,10 @@ Registrar dependencias de recursos o alcance de los artefactos derivados. Si una
 
 ## 10. Salida y conservación restringida
 
+**Precisión acordada para el bloque 4 (7 de noviembre de 2026):** el responsable de la cuenta administra su configuración, accesos, archivo y transferencia de responsabilidad. Compartir concede consulta u operación, no administración delegada. El rol del espacio no sustituye esta facultad. Una reincorporación no restaura accesos: el antiguo responsable puede recuperar explícitamente su cuenta conservada, con reautenticación y comprobación de la misma identidad, vinculándola a su nueva membresía. Las concesiones específicas de otras membresías terminadas no se recuperan. La recuperación no publica la cuenta ni cambia sus posiciones.
+
+La implementación de cuentas, catálogos y referencias manuales, sus contratos, límites y pruebas se describen en [Financial organization API](../FINANCIAL_ORGANIZATION.md). La inmovilización se deriva de la membresía responsable original: no depende de un trabajo posterior y la reincorporación no la revierte. Se conservan las revisiones de configuración y concesiones, sin utilizar permisos históricos para autorizar solicitudes actuales.
+
 La salida revoca la membresía, no elimina la identidad ni otras pertenencias. Se conservan autoría y hechos del espacio. El propietario resuelve la transferencia antes de salir de un espacio activo; la revocación por seguridad no se retrasa esperando cooperación y debe conservarse o restablecerse responsabilidad administrativa sin ampliar accesos financieros.
 
 **Ninguna cuenta continúa operativa sin responsable vigente.** Esta precisión sustituye la exigencia absoluta de responsabilidad activa de toda cuenta compartida del apartado 6.7: una cuenta inmovilizada puede conservarse mientras se regulariza.
