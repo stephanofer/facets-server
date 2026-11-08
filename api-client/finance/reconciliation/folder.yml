@@ -1,0 +1,11 @@
+info:
+  name: Reconciliation and consistency
+  type: folder
+  seq: 4
+request:
+  auth: inherit
+docs: |-
+  Preview the actual date/observed balance first; its calculated balance is captured as reconciliationCalculatedMinor.
+  Review before reconcile-account: adjust=true writes a traceable adjustment. Keep preview and command date/observed amount identical.
+  The ready-to-send adjustment requires a known calculated balance. For an unknown reference, explicitly use expected_calculated_minor=null and adjust=false instead.
+  Consistency checks record evidence and never repair balances. Retain original keys/body for retry; reset only for a distinct action.

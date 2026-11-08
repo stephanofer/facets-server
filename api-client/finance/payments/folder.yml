@@ -1,0 +1,12 @@
+info:
+  name: Payments and allocations
+  type: folder
+  seq: 7
+request:
+  auth: inherit
+docs: |-
+  Existing movement: due detail + operation detail → capacity → apply-payment → due detail → applications.
+  New movement: due detail + actual account → create-payment-operation → due detail → applications. Do NOT create the movement separately first.
+  These are alternatives, not one combined runner sequence. Apply uses the same effectOrdinal reviewed by capacity (zero by default).
+  Applications preserves your selected paymentApplicationId when present, otherwise selects the first active item. Review/change that selection before unlinking; unlink does not reverse the movement.
+  Keep each action's original body/version/key for retry. Refresh due detail and reset the relevant key only before a new action.

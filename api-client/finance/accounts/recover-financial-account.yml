@@ -1,0 +1,34 @@
+info:
+  name: recover-financial-account
+  type: http
+  seq: 10
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{recoveryAccountId}}/recovery"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{recoveryAccountVersion}},
+        "confirm": true
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Explicitly rebinds the same identity's ended responsibility to its new membership. Requires recent authentication and a non-reader role. Does not restore other ended grants, publish accounts or change positions.

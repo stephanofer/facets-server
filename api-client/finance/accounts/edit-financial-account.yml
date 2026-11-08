@@ -1,0 +1,38 @@
+info:
+  name: edit-financial-account
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Renamed synthetic bank account",
+        "state": "active",
+        "version": {{accountVersion}}
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("accountVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Responsible member only. The default renames without archiving, so the account remains operable. Replaces descriptive configuration and state; omitted institution, last_digits and counterparty_id are cleared. Does not edit currency, opening reference or current balance. Set state archived or closed explicitly for lifecycle tests; archive requires recent authentication.

@@ -1,0 +1,10 @@
+info:
+  name: Exchange references
+  type: folder
+  seq: 11
+request:
+  auth: inherit
+docs: |-
+  Create → get → convert uses the synthetic historical USD/PEN reference (3.75 on 2026-11-01).
+  Creation selects exchangeReferenceId; listing does not implicitly choose a rate. Conversion assertions match this exact example.
+  References are immutable and conversion is informative only: no balances or payment allocations change.

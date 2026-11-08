@@ -1,0 +1,42 @@
+info:
+  name: share-financial-account
+  type: http
+  seq: 7
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/sharing"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{accountVersion}},
+        "confirm": true,
+        "sharing": {
+          "visibility": "space",
+          "space_permission": "read",
+          "grants": []
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("accountVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Explicitly shares with all current and future members. Selected sharing instead needs grants with member_id and read/operate permission. Readers cannot receive operate grants. Requires recent authentication.

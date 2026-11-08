@@ -1,0 +1,11 @@
+info:
+  name: Recurring series
+  type: folder
+  seq: 8
+request:
+  auth: inherit
+docs: |-
+  Preview → create → detail → generate → dues/list-due-items. Preview and create use the same monthly rule.
+  Creation selects seriesId; detail captures seriesVersion and seriesGeneratedUntil. Listing never guesses a series.
+  Generation creates expectations, not financial operations. Edit demonstrates an explicit pause and should not precede generation in the normal scenario.
+  Configure series reminder defaults BEFORE generation to exercise future reminder creation. Preserve keys/body/version on retries.

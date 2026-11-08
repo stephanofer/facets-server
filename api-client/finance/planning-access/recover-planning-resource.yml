@@ -1,0 +1,37 @@
+info:
+  name: recover-planning-resource
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/planning-resources/{{recoveryPlanningId}}/recover"
+  headers:
+    - name: Idempotency-Key
+      value: "{{planningRecoveryKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{recoveryPlanningVersion}},
+        "confirm": true
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("planningRecoveryKey")) bru.setVar("planningRecoveryKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Explicit same-identity recovery after reviewing list-recoverable-planning-resources. Requires recent authentication. Does not publish private resources, move balances, or restore grants from ended memberships. Preserve key/body for retries.

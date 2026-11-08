@@ -1,0 +1,11 @@
+info:
+  name: Categories and catalog
+  type: folder
+  seq: 2
+request:
+  auth: inherit
+docs: |-
+  Categories, merchants, counterparties and tags share this catalog.
+  Create selects catalogEntryId; detail captures catalogVersion. The creation/edit examples use a tag.
+  Listing defaults to categories; change kind to tag to find that example.
+  Merge is not a routine edit: deliberately choose a compatible mergeTargetId and mergeTargetVersion.

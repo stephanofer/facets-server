@@ -1,0 +1,35 @@
+info:
+  name: get-movement-application-capacity
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}/effects/{{effectOrdinal}}/application-capacity"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("effectOrdinal")) bru.setVar("effectOrdinal", 0);
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("operationVersion", res.body.revision);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.capacity_minor
+      operator: isString
+    - expression: res.body.applied_minor
+      operator: isString
+    - expression: res.body.available_minor
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Read advisory capacity in the actual effect currency. This does not reserve funds or allocation capacity. A later application rechecks revision, permissions and capacity under locks. Ineligible effects and voided operations expose eligible false and zero capacity. Access to every active target due is required; private allocations are not exposed through remaining capacity. Change the effect ordinal explicitly when inspecting another effect.

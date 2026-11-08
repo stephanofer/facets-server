@@ -34,6 +34,19 @@ satisfy the backend. Enter real local codes only in the ignored `.env` or
 runtime variables, never in versioned environment/request files. If Desktop
 does not pick up a changed `.env`, reload the collection before authenticating.
 
+## Find a financial request
+
+`finance/` is grouped by task: **Accounts**, **Categories and catalog**,
+**Operations and revisions**, **Reconciliation and consistency**, **Search and
+summaries**, **Dues**, **Payments and allocations**, **Recurring series**,
+**Accountless planning access**, **Personal reminders**, and **Exchange references**.
+Each folder's Docs tab describes prerequisites and the intended sequence.
+Request names/filenames still match OpenAPI operation IDs; only their paths changed.
+
+See [manual testing scenarios](../docs/API_CLIENT_MANUAL_TESTING.md) for runnable
+paths, resource selection, retry rules and expected outcomes. Do not run the
+entire finance folder as a single scenario.
+
 ## State and prerequisites
 
 - Customer Bearer auth is defined at collection level. `internal/` overrides
@@ -84,7 +97,7 @@ semantics, deliberately replace that header temporarily with the same fixed
 key and identical body; never regenerate the key for an actual retry. Do not
 commit temporary replay keys or secret-bearing edits.
 
-`finance/create-financial-operation` retains `operationActionKey` in memory for
+`finance/operations/create-financial-operation` retains `operationActionKey` in memory for
 safe retries, including a lost response. Clear it explicitly to begin a distinct
 operation. Do not change the body under an existing action key. It captures
 `operationId` for detail; account history reveals only the selected account's
@@ -99,7 +112,7 @@ Reconciliation/check commands retain `reconciliationActionKey`/`consistencyActio
 as well; clear them only for distinct actions. Review the historical calculation
 with `preview-account-reconciliation` before confirming it. Search, suggestions,
 reconciliation evidence, consistency incidences and original-currency summaries
-are available in the same folder. See [Financial operations](../docs/FINANCIAL_OPERATIONS.md)
+are grouped by task under `finance/`. See [Financial operations](../docs/FINANCIAL_OPERATIONS.md)
 for contracts and acceptance status.
 
 The current block-6 slice adds standalone dues and application of movements.
@@ -116,9 +129,8 @@ Do not refresh a version while retrying the original committed command. See
 block-6 work. These mutating requests are not part of the read-only smoke.
 
 For account-linked series, use `preview-recurring-series`, review the intended
-rule, then `create-recurring-series` and `get-recurring-series`. The preview
-example demonstrates coincident nominal days; the creation example is monthly,
-so adjust and preview the actual rule you want before confirming. Use
+rule, then `create-recurring-series` and `get-recurring-series`. Both examples
+use the same monthly rule; adjust and preview the actual rule you want before confirming. Use
 `generate-recurring-occurrences` to extend a bounded horizon and `list-due-items`
 to consult generated dues and their source identity. Generation never records
 money. `edit-recurring-series` versions future conditions or pauses/resumes/ends/
@@ -195,8 +207,9 @@ schema `Link` headers in both successful and error responses. Schema discovery
 endpoints are disabled; [`docs/openapi.json`](../docs/openapi.json) remains the
 integration contract, and server-side input validation remains enabled.
 
-Keep request filenames equal to OpenAPI operation IDs and folders aligned with
-tags. When the contract changes, review examples against `internal/access/`
+Keep request filenames equal to OpenAPI operation IDs and top-level folders aligned with
+tags; task-oriented subfolders are allowed. Update every `bru.runRequest` path when moving requests.
+When the contract changes, review examples against `internal/access/`
 validation and authorization, update scripts/assertions, and inspect the diff.
 An OpenAPI import alone is not a replacement for this curated collection.
 

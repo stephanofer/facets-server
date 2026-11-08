@@ -1,0 +1,46 @@
+info:
+  name: list-exchange-references
+  type: http
+  seq: 2
+  tags:
+    - smoke
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/exchange-references?from_currency=USD&to_currency=PEN&context=historical"
+  params:
+    - name: cursor
+      value: ""
+      type: query
+      disabled: true
+    - name: limit
+      value: "50"
+      type: query
+      disabled: true
+    - name: from_currency
+      value: USD
+      type: query
+    - name: to_currency
+      value: PEN
+      type: query
+    - name: context
+      value: historical
+      type: query
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Historical and current contexts are distinct. Listing never invents a missing rate or implicitly selects one for financial writes.

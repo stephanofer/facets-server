@@ -1,0 +1,29 @@
+info:
+  name: get-due-reminder
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/dues/{{dueId}}/reminder"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("reminderVersion", res.body.version);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.configured
+      operator: isBoolean
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Personal in-app reminder only. Version zero means no configuration yet. Review stale after renegotiating a due date; reconfigure explicitly. Delivery status is durable, but does not indicate a payment or an external push/email.

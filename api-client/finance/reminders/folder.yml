@@ -1,0 +1,11 @@
+info:
+  name: Personal reminders
+  type: folder
+  seq: 10
+request:
+  auth: inherit
+docs: |-
+  Due detail → get-due-reminder → configure. Version zero is a valid unconfigured preference.
+  To snooze, read the configured reminder and explicitly choose a future reminderSnoozeUntil (RFC3339); this never changes the due date.
+  Series: detail → get-series-reminder → configure-series-reminder → generate future dues.
+  Requires the notifications worker for delivery. Keep original versions/body/keys for retries; for a distinct action, refresh and clear its key.

@@ -1,0 +1,40 @@
+info:
+  name: generate-recurring-occurrences
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/{{seriesId}}/generate"
+  headers:
+    - name: Idempotency-Key
+      value: "{{seriesGenerateKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{seriesVersion}},
+        "until": "2027-02-01",
+        "confirm": true
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("seriesGenerateKey")) bru.setVar("seriesGenerateKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Materialize up to an exclusive horizon no more than 366 civil days after generated_until. This creates common dues, not movements. Repeating an already covered horizon never duplicates occurrences. Requires active series and an operable account. Preserve key/body for recovery, and review the example horizon before sending.

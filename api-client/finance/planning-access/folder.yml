@@ -1,0 +1,11 @@
+info:
+  name: Accountless planning access
+  type: folder
+  seq: 9
+request:
+  auth: inherit
+docs: |-
+  First create/read an accountless due or series; detail selects planningResourceId.
+  Read access → explicitly review audience/responsibility → edit. A plan never grants access to related private payment accounts.
+  Recovery is a separate same-identity rejoin scenario: select recoveryPlanningId and recoveryPlanningVersion explicitly from recoverable references.
+  For a new access edit, refresh detail and clear planningAccessKey. Keep the original version/body/key unchanged for retry.

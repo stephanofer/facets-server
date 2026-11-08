@@ -1,0 +1,11 @@
+info:
+  name: Accounts
+  type: folder
+  seq: 1
+request:
+  auth: inherit
+docs: |-
+  Start here: proposal → create → detail. Creation selects accountId; listing never guesses a financial target.
+  To use an existing account, set accountId from the authorized list, then fetch detail.
+  Edit keeps the example active so operations remain possible. Archive/close, sharing, responsibility transfer and recovery are separate deliberate tests.
+  Sharing and administration require the responsible member; sensitive changes require recent authentication.

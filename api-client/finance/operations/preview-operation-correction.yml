@@ -1,0 +1,48 @@
+info:
+  name: preview-operation-correction
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}/correction-preview"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{operationVersion}},
+        "reason": "Correct synthetic expense",
+        "replacement": {
+          "kind": "expense",
+          "date": "2026-11-01",
+          "applied": {
+            "account_id": "{{accountId}}",
+            "amount_minor": "1500"
+          },
+          "parts": [],
+          "fees": [],
+          "exceptional": false,
+          "tag_ids": [],
+          "confirm": true
+        }
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.accounts
+      operator: isArray
+    - expression: res.body.change_kind
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Read-only preview for the example expense correction. Select the current operationVersion with get-financial-operation. Copy the same replacement to correct-financial-operation after reviewing its consequences. Confirmation flags describe the proposed capture; preview never writes a revision or financial effect. Account balances can change after preview; commit revalidates current data and permissions.

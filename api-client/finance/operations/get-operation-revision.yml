@@ -1,0 +1,28 @@
+info:
+  name: get-operation-revision
+  type: http
+  seq: 8
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations/{{operationId}}/revisions/{{operationRevision}}"
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.effects
+      operator: isArray
+    - expression: res.body.change_kind
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Explicitly select operationRevision from list-operation-revisions. Old effects are retained evidence, not additional current movements. A void revision retains the canceled effects for explanation; voided=true means they do not contribute to balances or economic totals. Current access to every account in the requested revision is required, independently of the current revision.

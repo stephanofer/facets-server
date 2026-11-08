@@ -8,7 +8,11 @@ http:
   url: "{{baseUrl}}/v1/me/sessions/revoke"
   body:
     type: json
-    data: '{ "id": "{{sessionId}}", "all": true }'
+    data: |-
+      {
+        "id": "{{sessionId}}",
+        "all": true
+      }
   auth: inherit
 
 runtime:

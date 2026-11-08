@@ -89,7 +89,12 @@ func checkRequest(document, operation, pathItem object, method, path, file strin
 		return fmt.Errorf("filename and info.name must match operationId %q and info.type must be http", id)
 	}
 	tags, _ := operation["tags"].([]any)
-	if len(tags) != 1 || !strings.EqualFold(filepath.Base(filepath.Dir(file)), fmt.Sprint(tags[0])) {
+	relative, err := filepath.Rel("api-client", file)
+	if err != nil {
+		return err
+	}
+	folder, _, _ := strings.Cut(filepath.ToSlash(relative), "/")
+	if len(tags) != 1 || !strings.EqualFold(folder, fmt.Sprint(tags[0])) {
 		return fmt.Errorf("request folder must match the operation tag")
 	}
 	// Parameter names in Bruno may be camelCase, but every segment must remain a variable.

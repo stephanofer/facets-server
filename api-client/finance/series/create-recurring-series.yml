@@ -1,0 +1,60 @@
+info:
+  name: create-recurring-series
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series"
+  headers:
+    - name: Idempotency-Key
+      value: "{{seriesCreateKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "account_id": "{{accountId}}",
+        "direction": "payment",
+        "name": "Synthetic recurring rent",
+        "amount": {
+          "certainty": "confirmed",
+          "amount_minor": "100",
+          "maximum_minor": null
+        },
+        "recurrence": {
+          "start": "2026-11-01",
+          "frequency": "monthly",
+          "interval": 0,
+          "first_day": 0,
+          "second_day": 0,
+          "count": 0
+        },
+        "confirm": true
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("seriesCreateKey")) bru.setVar("seriesCreateKey", bru.interpolate("{{$randomUUID}}"));
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("seriesId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: |-
+  Configure a manual expectation only. Preview the recurrence first. Preserve key/body for retries; clear seriesCreateKey for a distinct series.
+  With account_id, currency and privacy follow the account. For a private accountless series, remove account_id and add "currency":"PEN". Sharing is a separate explicit command.
+  Optional counterparty_id and suggested_category_id must identify active entries in this space with the right kind/direction. Suggestions never change actual operations automatically.
+  To track a personal financial subscription, add "subscription":{"plan":"Synthetic plan","trial_until":"2026-11-10","renewal_on":"2026-12-01","cancel_by":"2026-11-28"}. Known dates are civil; cancellation_on can be recorded separately. Receipt series cannot be subscriptions. Versions preserve price/contract changes. Neither dates, tracking cancellation nor equivalent costs move money or cancel a provider contract.

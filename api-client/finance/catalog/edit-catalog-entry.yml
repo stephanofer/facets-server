@@ -1,0 +1,40 @@
+info:
+  name: edit-catalog-entry
+  type: http
+  seq: 5
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/catalog/{{catalogEntryId}}"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "value": {
+          "name": "Renamed synthetic trip"
+        },
+        "archived": false,
+        "version": {{catalogVersion}}
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("catalogVersion", "");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Example renames the created tag without archiving it. Set archived true explicitly to test archival. Category edits must preserve direction and provide icon/color. Full configuration replacement; parent changes affect grouping but never amounts. Merged entries are immutable.

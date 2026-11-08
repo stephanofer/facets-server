@@ -17,8 +17,27 @@ request:
           for (const key of ["dueId", "dueVersion", "dueCreateKey", "dueEditKey", "paymentApplyKey", "paymentApplicationId", "paymentUnlinkKey", "paymentOperationKey", "effectOrdinal"]) bru.setVar(key, "");
           for (const key of ["seriesId", "seriesVersion", "seriesGeneratedUntil", "seriesCreateKey", "seriesEditKey", "seriesGenerateKey"]) bru.setVar(key, "");
           for (const key of ["planningResourceId", "planningAccessVersion", "planningResponsibleMemberId", "planningAccessKey", "planningRecoveryKey", "recoveryPlanningId", "recoveryPlanningVersion", "reminderVersion", "reminderConfigureKey", "reminderSnoozeKey", "reminderSnoozeUntil", "seriesReminderVersion", "seriesReminderKey"]) bru.setVar(key, "");
+          for (const key of ["selectedAccountId", "selectedCatalogEntryId", "selectedOperationId", "selectedDueId", "selectedSeriesId", "selectedPlanningResourceId", "reconciliationCalculatedMinor"]) bru.setVar(key, "");
+        }
+        // An explicitly changed selection must not reuse another resource's versions or action keys.
+        const selections = [
+          ["accountId", "selectedAccountId", ["accountVersion", "reconciliationCalculatedMinor", "reconciliationId", "reconciliationActionKey", "consistencyCheckId", "consistencyActionKey"]],
+          ["catalogEntryId", "selectedCatalogEntryId", ["catalogVersion", "mergeTargetId", "mergeTargetVersion"]],
+          ["operationId", "selectedOperationId", ["operationVersion", "operationCorrectionKey", "operationVoidKey", "operationRevision", "operationRevisionCursor", "effectOrdinal", "paymentApplyKey"]],
+          ["dueId", "selectedDueId", ["dueVersion", "dueEditKey", "paymentApplyKey", "paymentApplicationId", "paymentUnlinkKey", "reminderVersion", "reminderConfigureKey", "reminderSnoozeKey", "reminderSnoozeUntil", "planningResourceId", "planningAccessVersion", "planningResponsibleMemberId", "planningAccessKey"]],
+          ["seriesId", "selectedSeriesId", ["seriesVersion", "seriesGeneratedUntil", "seriesEditKey", "seriesGenerateKey", "seriesReminderVersion", "seriesReminderKey", "planningResourceId", "planningAccessVersion", "planningResponsibleMemberId", "planningAccessKey"]],
+          ["planningResourceId", "selectedPlanningResourceId", ["planningAccessVersion", "planningResponsibleMemberId", "planningAccessKey"]]
+        ];
+        for (const [id, selection, dependent] of selections) {
+          const current = bru.getVar(id) || "";
+          if (bru.getVar(selection) !== current) {
+            for (const key of dependent) bru.setVar(key, "");
+            bru.setVar(selection, current);
+          }
         }
         const name = req.getName();
+        if (["apply-payment", "get-movement-application-capacity"].includes(name) && (bru.getVar("effectOrdinal") === undefined || bru.getVar("effectOrdinal") === "")) bru.setVar("effectOrdinal", 0);
+        if (name === "reconcile-account" && bru.getVar("reconciliationCalculatedMinor") === "" && req.getBody().adjust) throw new Error("Review preview-account-reconciliation with a known balance first. Unknown references require adjust=false and expected_calculated_minor=null.");
         if (["get-due-reminder", "configure-due-reminder", "snooze-due-reminder"].includes(name) && !bru.getVar("dueId")) throw new Error("Select an authorized dueId first.");
         if (name === "configure-due-reminder" && (bru.getVar("reminderVersion") === undefined || bru.getVar("reminderVersion") === "" || !bru.getVar("dueVersion"))) throw new Error("Review get-due-item and get-due-reminder first.");
         if (name === "snooze-due-reminder" && (!bru.getVar("reminderVersion") || !bru.getVar("reminderSnoozeUntil"))) throw new Error("Review the reminder and choose reminderSnoozeUntil explicitly.");
@@ -41,15 +60,21 @@ request:
         if (["preview-operation-correction", "correct-financial-operation", "void-financial-operation"].includes(name) && !bru.getVar("operationVersion")) throw new Error("Read get-financial-operation and review the current version first.");
         if (name === "get-operation-revision" && !bru.getVar("operationRevision")) throw new Error("Explicitly select operationRevision from list-operation-revisions.");
         if (["edit-financial-account", "share-financial-account", "transfer-account-responsibility"].includes(name) && !bru.getVar("accountVersion")) {
-          const response = await bru.runRequest("finance/get-financial-account");
+          const response = await bru.runRequest("finance/accounts/get-financial-account");
           if (response.status !== 200) throw new Error("Cannot read current account version.");
         }
         if (["get-catalog-entry", "edit-catalog-entry", "merge-catalog-entries"].includes(name) && !bru.getVar("catalogEntryId")) throw new Error("Run create-catalog-entry, or select catalogEntryId from list-catalog-entries.");
         if (["edit-catalog-entry", "merge-catalog-entries"].includes(name) && !bru.getVar("catalogVersion")) {
-          const response = await bru.runRequest("finance/get-catalog-entry");
+          const response = await bru.runRequest("finance/catalog/get-catalog-entry");
           if (response.status !== 200) throw new Error("Cannot read current catalog version.");
         }
         if (name === "merge-catalog-entries" && (!bru.getVar("mergeTargetId") || !bru.getVar("mergeTargetVersion"))) throw new Error("Explicitly select mergeTargetId and its current mergeTargetVersion. No target is guessed.");
         if (name === "transfer-account-responsibility" && !bru.getVar("memberId")) throw new Error("Select a current authorized memberId first.");
         if (name === "recover-financial-account" && (!bru.getVar("recoveryAccountId") || !bru.getVar("recoveryAccountVersion"))) throw new Error("Run list-recoverable-accounts and explicitly select recoveryAccountId and recoveryAccountVersion.");
         if (["get-exchange-reference", "convert-informative-amount"].includes(name) && !bru.getVar("exchangeReferenceId")) throw new Error("Run create-exchange-reference, or select an exchangeReferenceId.");
+docs: |-
+  Browse by financial task; each subfolder documents prerequisites and its manual flow.
+  Folder order is navigation, NOT permission to run all requests. Sharing, transfers of responsibility, correction, voiding, unlinking and recovery need deliberate review.
+  Lists never guess financial targets. Create selects its result; otherwise choose the intended ID from the authorized response and read its detail.
+  Switching space resets financial state. Switching a selected resource clears its dependent versions/action keys, not unrelated selections.
+  See ../README.md and ../../docs/API_CLIENT_MANUAL_TESTING.md for manual scenarios and retry rules.

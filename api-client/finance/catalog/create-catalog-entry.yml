@@ -1,0 +1,39 @@
+info:
+  name: create-catalog-entry
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/catalog"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "kind": "tag",
+        "value": {
+          "name": "Synthetic trip"
+        }
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) { bru.setVar("catalogEntryId", res.body.id); bru.setVar("catalogVersion", ""); }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Owner/admin only. Kinds are category, merchant, counterparty and tag. Categories also require direction income/expense, icon and color; optional parent_id must identify an active root of the same direction.

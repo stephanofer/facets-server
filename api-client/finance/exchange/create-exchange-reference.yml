@@ -1,0 +1,41 @@
+info:
+  name: create-exchange-reference
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/exchange-references"
+  headers:
+    - name: Idempotency-Key
+      value: "{{$randomUUID}}"
+  body:
+    type: json
+    data: |-
+      {
+        "from_currency": "USD",
+        "to_currency": "PEN",
+        "rate": "3.75",
+        "date": "2026-11-01",
+        "context": "historical",
+        "source": "Manual synthetic reference"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("exchangeReferenceId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Rate is target major units per source major unit. Owner/admin only. Corrections create a new immutable reference with replaces set to the prior ID; existing references never change. No financial position is modified.

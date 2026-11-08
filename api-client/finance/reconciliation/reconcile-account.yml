@@ -1,0 +1,45 @@
+info:
+  name: reconcile-account
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/reconciliations"
+  headers:
+    - name: Idempotency-Key
+      value: "{{reconciliationActionKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "date": "2026-11-02",
+        "observed_minor": "11500",
+        "expected_calculated_minor": "{{reconciliationCalculatedMinor}}",
+        "adjust": true,
+        "reason": "Synthetic observed statement difference",
+        "confirm": true
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("reconciliationActionKey")) bru.setVar("reconciliationActionKey", bru.interpolate("{{$randomUUID}}"));
+    - type: after-response
+      code: if (res.status === 200) bru.setVar("reconciliationId", res.body.id);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Run preview-account-reconciliation with the same date/observed amount first; it captures reconciliationCalculatedMinor for review, never a fixed guessed balance. A stale calculated balance conflicts. Adjust confirms a separate traceable position-only operation; unknown references require explicit expected_calculated_minor null and adjust false. Keep the action key and original body/calculated balance for retries; do not rerun preview until starting a distinct comparison.

@@ -1,0 +1,45 @@
+info:
+  name: preview-recurring-series
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/preview"
+  body:
+    type: json
+    data: |-
+      {
+        "recurrence": {
+          "start": "2026-11-01",
+          "frequency": "monthly",
+          "interval": 0,
+          "first_day": 0,
+          "second_day": 0,
+          "count": 0
+        },
+        "from": "2026-11-01",
+        "until": "2026-12-01"
+      }
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.length
+      operator: eq
+      value: "1"
+    - expression: res.body[0].date
+      operator: eq
+      value: 2026-11-01
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Read-only calendar preview of the same monthly rule used by create-recurring-series. Review the intended rule before creating or editing. To test coincident nominal slots, use twice_monthly with first_day 30 and second_day 31; November returns two November 30 occurrences. Update assertions when changing the example. Maximum window is 366 civil days, until exclusive.

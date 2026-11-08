@@ -1,0 +1,11 @@
+info:
+  name: Dues
+  type: folder
+  seq: 6
+request:
+  auth: inherit
+docs: |-
+  Create → detail selects dueId/dueVersion without moving money. Existing dues must be selected explicitly from the list.
+  The default is a confirmed payment expectation on accountId. Remove account_id and add currency for an accountless private commitment.
+  Continue in Payments to fulfill it; reminders and accountless access have their own folders.
+  Read detail before each distinct edit/payment/unlink, but not while retrying an original committed command.

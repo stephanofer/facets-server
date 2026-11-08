@@ -1,0 +1,34 @@
+info:
+  name: list-account-consistency-checks
+  type: http
+  seq: 5
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/accounts/{{accountId}}/consistency-checks?limit=50"
+  params:
+    - name: cursor
+      value: ""
+      type: query
+      disabled: true
+    - name: limit
+      value: "50"
+      type: query
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Lists immutable consistency evidence, including discrepancy incidences, with current account authorization. Unknown reconstructed/projected references remain null rather than confirmed zero.

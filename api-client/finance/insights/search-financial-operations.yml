@@ -1,0 +1,82 @@
+info:
+  name: search-financial-operations
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/operations?limit=50"
+  params:
+    - name: from
+      value: 2026-11-01
+      type: query
+      disabled: true
+    - name: to
+      value: 2026-12-01
+      type: query
+      disabled: true
+    - name: account_id
+      value: "{{accountId}}"
+      type: query
+      disabled: true
+    - name: currency
+      value: PEN
+      type: query
+      disabled: true
+    - name: category_id
+      value: "{{catalogEntryId}}"
+      type: query
+      disabled: true
+    - name: merchant_id
+      value: ""
+      type: query
+      disabled: true
+    - name: counterparty_id
+      value: ""
+      type: query
+      disabled: true
+    - name: tag_id
+      value: ""
+      type: query
+      disabled: true
+    - name: kind
+      value: expense
+      type: query
+      disabled: true
+    - name: min_minor
+      value: "0"
+      type: query
+      disabled: true
+    - name: max_minor
+      value: "9223372036854775807"
+      type: query
+      disabled: true
+    - name: q
+      value: Synthetic
+      type: query
+      disabled: true
+    - name: cursor
+      value: ""
+      type: query
+      disabled: true
+    - name: limit
+      value: "50"
+      type: query
+  auth: inherit
+
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.items
+      operator: isArray
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Searches non-void current revisions readable on every affected account. Dates are from-inclusive/to-exclusive; amount is the absolute amount of a matching position effect, not a conversion. Primary amount/currency identify ordinal zero and may differ from the account matched by the filters. Catalog filters resolve aliases after merges. q matches literal text in notes, merchant or counterparty names. Ascending date/ID cursor ordering is stable and every page rechecks authorization. For a partially restricted transfer use the authorized account history instead.

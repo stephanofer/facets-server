@@ -1,0 +1,44 @@
+info:
+  name: configure-due-reminder
+  type: http
+  seq: 2
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/dues/{{dueId}}/reminder"
+  headers:
+    - name: Idempotency-Key
+      value: "{{reminderConfigureKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{reminderVersion}},
+        "due_version": {{dueVersion}},
+        "enabled": true,
+        "days_before": 1,
+        "hour": 9,
+        "minute": 0,
+        "zone": "America/Lima",
+        "confirm": true,
+        "reason": "Explicit personal synthetic reminder"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("reminderConfigureKey")) bru.setVar("reminderConfigureKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Review get-due-item and get-due-reminder first. Configures only the current member's reminder, including readers; cannot address third parties. A past schedule explicitly requests immediate delivery. Requires the notifications worker. Keep the body/key unchanged for a retry.

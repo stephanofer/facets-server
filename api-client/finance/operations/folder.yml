@@ -1,0 +1,11 @@
+info:
+  name: Operations and revisions
+  type: folder
+  seq: 3
+request:
+  auth: inherit
+docs: |-
+  Select an active account first. Create records a real expense and selects operationId; detail captures operationVersion.
+  History shows only the selected account's effects. To inspect another operation, set operationId from authorized history/search, then fetch detail.
+  Correction: detail → preview → review the same replacement → correct. Voiding is an alternative destructive scenario, not the next mandatory step.
+  Select operationRevision explicitly from revision summaries. Preserve original action key, body and version for retries; refresh detail and clear the relevant key only for a new action.

@@ -1,0 +1,56 @@
+info:
+  name: edit-recurring-series
+  type: http
+  seq: 6
+
+http:
+  method: PUT
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/{{seriesId}}"
+  headers:
+    - name: Idempotency-Key
+      value: "{{seriesEditKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Synthetic recurring rent",
+        "amount": {
+          "certainty": "confirmed",
+          "amount_minor": "150",
+          "maximum_minor": null
+        },
+        "recurrence": {
+          "start": "2026-11-01",
+          "frequency": "monthly",
+          "interval": 0,
+          "first_day": 0,
+          "second_day": 0,
+          "count": 0
+        },
+        "version": {{seriesVersion}},
+        "confirm": true,
+        "effective_from": "{{seriesGeneratedUntil}}",
+        "state": "paused",
+        "reason": "Pause future generation; preserve existing obligations"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("seriesEditKey")) bru.setVar("seriesEditKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Review the full replacement and preview its rule first. Effective date cannot precede the existing generated horizon. Existing dues and applications are never rewritten. Use active to resume at an explicit effective date, ended/cancelled to stop tracking permanently; cancelling does not cancel an external provider contract. Clear seriesEditKey only for a different action.

@@ -1,0 +1,39 @@
+info:
+  name: snooze-due-reminder
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/dues/{{dueId}}/reminder/snooze"
+  headers:
+    - name: Idempotency-Key
+      value: "{{reminderSnoozeKey}}"
+  body:
+    type: json
+    data: |-
+      {
+        "version": {{reminderVersion}},
+        "until": "{{reminderSnoozeUntil}}",
+        "confirm": true,
+        "reason": "Postpone notification only"
+      }
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: before-request
+      code: if (!bru.getVar("reminderSnoozeKey")) bru.setVar("reminderSnoozeKey", bru.interpolate("{{$randomUUID}}"));
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Review get-due-reminder, and explicitly set reminderSnoozeUntil to a future RFC3339 instant within 366 days. Snooze does not move the due date or mark anything paid. Preserve the original key/body for recovery, even after the chosen instant passes.

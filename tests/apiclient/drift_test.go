@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -84,8 +85,8 @@ func TestCollectionRejectsDrift(t *testing.T) {
 		{"protected auth", "api-client/spaces/edit-space.yml", "auth: inherit", "auth: none", "protected request"},
 		{"header", "api-client/spaces/edit-space.yml", "name: Idempotency-Key", "name: Wrong", "missing required header"},
 		{"query", "api-client/spaces/list-spaces.yml", "method: GET", "method: GET\n  params:\n    - name: wrong\n      value: example\n      type: query", "undocumented query parameter"},
-		{"query absent from URL", "api-client/finance/list-catalog-entries.yml", "/catalog?kind=category", "/catalog", "must also appear"},
-		{"query value differs from URL", "api-client/finance/list-catalog-entries.yml", "value: category", "value: tag", "must also appear"},
+		{"query absent from URL", "api-client/finance/catalog/list-catalog-entries.yml", "/catalog?kind=category", "/catalog", "must also appear"},
+		{"query value differs from URL", "api-client/finance/catalog/list-catalog-entries.yml", "value: category", "value: tag", "must also appear"},
 		{"body field", "api-client/spaces/edit-space.yml", `"version": {{spaceVersion}}`, `"wrong": {{spaceVersion}}`, "missing required field version"},
 		{"null body", "api-client/spaces/edit-space.yml", `"version": {{spaceVersion}}`, `"version": null`, "must be a number"},
 		{"enum", "api-client/spaces/edit-space.yml", `"purpose": "family"`, `"purpose": "unknown"`, "enum value"},
@@ -175,5 +176,69 @@ func TestCollectionEndpointLifecycle(t *testing.T) {
 			}
 			assertProblem(t, checkCollection(root), want)
 		})
+	}
+}
+
+func TestCollectionRequestSubfolders(t *testing.T) {
+	for _, tc := range []struct {
+		name, destination string
+		valid             bool
+	}{
+		{"nested finance task", "api-client/finance/catalog/custom/list-catalog-entries.yml", true},
+		{"wrong top-level tag", "api-client/account/catalog/list-catalog-entries.yml", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			directory := copyCollection(t)
+			root := openTestRoot(t, directory)
+			if err := root.MkdirAll(filepath.Dir(tc.destination), 0o750); err != nil {
+				t.Fatal(err)
+			}
+			if err := root.Rename("api-client/finance/catalog/list-catalog-entries.yml", tc.destination); err != nil {
+				t.Fatal(err)
+			}
+			problems := checkCollection(directory)
+			if tc.valid {
+				if len(problems) != 0 {
+					t.Fatal(problems)
+				}
+			} else {
+				assertProblem(t, problems, "request folder must match the operation tag")
+			}
+		})
+	}
+}
+
+func TestCollectionScriptTargets(t *testing.T) {
+	t.Parallel()
+	root := openTestRoot(t, "../..")
+	targets := regexp.MustCompile(`bru\.runRequest\("([^"]+)"\)`)
+	err := fs.WalkDir(root.FS(), "api-client", func(file string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if entry.Name() == "node_modules" || entry.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(file) != ".yml" {
+			return nil
+		}
+		data, err := root.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		for _, match := range targets.FindAllSubmatch(data, -1) {
+			target := "api-client/" + string(match[1]) + ".yml"
+			if _, err := root.Stat(target); err != nil {
+				t.Errorf("%s: nested request %s does not resolve: %v", file, target, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

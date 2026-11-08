@@ -1,0 +1,36 @@
+info:
+  name: get-recurring-series
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: "{{baseUrl}}/v1/spaces/{{spaceId}}/series/{{seriesId}}"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar("seriesVersion", res.body.version);
+          bru.setVar("seriesGeneratedUntil", res.body.generated_until);
+          bru.setVar("planningResourceId", res.body.resource_id || "");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: "200"
+    - expression: res.body.id
+      operator: isString
+    - expression: res.body.version
+      operator: isNumber
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
+
+docs: Read current conditions and exclusive generation progress. Reading does not extend the horizon. Use the current version for a NEW command; retain the original version/body when retrying a previous command.
